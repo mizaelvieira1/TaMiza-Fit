@@ -1,0 +1,247 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { useProfileStore } from '@/store/profileStore'
+import { BottomNav } from '@/components/BottomNav'
+import { GraficoEvolucao } from '@/components/GraficoEvolucao'
+import { ExamProgress } from '@/components/ExamProgress'
+import { useStreakDias } from '@/hooks/useStreakDias'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+
+export default function EvolucaoPage() {
+  const router = useRouter()
+  const { activeProfile, profileId } = useProfileStore()
+  const { streak, maxStreak } = useStreakDias(profileId)
+
+  const [exercises, setExercises] = useState<any[]>([])
+  const [selectedExercise, setSelectedExercise] = useState<string>('')
+  const [cargaData, setCargaData] = useState<{ date: string; value: number }[]>([])
+  const [exams, setExams] = useState<any[]>([])
+  const [weeklyProtein, setWeeklyProtein] = useState<{ day: string; value: number }[]>([])
+  const [frequencyGrid, setFrequencyGrid] = useState<{ date: string; status: 'done' | 'rest' | 'missed' }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
+  const proteinGoal = activeProfile === 'tamires' ? 128 : 150
+
+  useEffect(() => {
+    if (!activeProfile) { router.replace('/'); return }
+    if (!profileId) return
+
+    async function load() {
+      // Load exercises for selector
+      const { data: exs } = await supabase
+        .from('exercises')
+        .select('id, name, workout_id')
+        .in('workout_id', (await supabase.from('workouts').select('id').eq('profile_id', profileId)).data?.map(w => w.id) || [])
+        .order('name')
+
+      const uniqueExs = exs?.filter((ex, i, arr) => arr.findIndex(e => e.name === ex.name) === i) || []
+      setExercises(uniqueExs)
+      if (uniqueExs.length > 0) setSelectedExercise(uniqueExs[0].id)
+
+      // Load exams (Mizael only)
+      if (activeProfile === 'mizael') {
+        const { data: examData } = await supabase
+          .from('exam_results')
+          .select('*')
+          .eq('profile_id', profileId)
+          .order('logged_date', { ascending: false })
+
+        // Get latest per exam_name
+        const latestExams: Record<string, any> = {}
+        examData?.forEach(e => {
+          if (!latestExams[e.exam_name]) latestExams[e.exam_name] = e
+        })
+        setExams(Object.values(latestExams))
+      }
+
+      // Weekly protein from meal logs
+      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+      const proteinByDay: { day: string; value: number }[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000)
+        const dateStr = d.toISOString().split('T')[0]
+        const { data: logs } = await supabase
+          .from('meal_logs')
+          .select('meal_id, completed')
+          .eq('profile_id', profileId)
+          .eq('logged_date', dateStr)
+          .eq('completed', true)
+
+        const { data: meals } = await supabase
+          .from('meals')
+          .select('id, protein_g')
+          .eq('profile_id', profileId)
+
+        let total = 0
+        logs?.forEach(l => {
+          const m = meals?.find(m => m.id === l.meal_id)
+          if (m) total += m.protein_g || 0
+        })
+        proteinByDay.push({ day: days[d.getDay()], value: total })
+      }
+      setWeeklyProtein(proteinByDay)
+
+      // Frequency grid — last 28 days
+      const grid: { date: string; status: 'done' | 'rest' | 'missed' }[] = []
+      const { data: sessions } = await supabase
+        .from('workout_sessions')
+        .select('started_at, completed')
+        .eq('profile_id', profileId)
+        .gte('started_at', new Date(Date.now() - 28 * 86400000).toISOString())
+
+      for (let i = 27; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000)
+        const dateStr = d.toISOString().split('T')[0]
+        const daySession = sessions?.find(s => s.started_at.startsWith(dateStr))
+        const dayOfWeek = d.getDay()
+        const isRestDay = dayOfWeek === 0
+        const status = daySession?.completed ? 'done' : isRestDay ? 'rest' : 'missed'
+        grid.push({ date: dateStr, status })
+      }
+      setFrequencyGrid(grid)
+
+      setLoading(false)
+    }
+
+    load()
+  }, [activeProfile, profileId])
+
+  useEffect(() => {
+    if (!selectedExercise || !profileId) return
+
+    async function loadCarga() {
+      const { data: logs } = await supabase
+        .from('set_logs')
+        .select('weight_kg, logged_at, session_id')
+        .eq('exercise_id', selectedExercise)
+        .eq('completed', true)
+        .order('logged_at', { ascending: true })
+
+      // Group by session — take max weight per session
+      const bySession: Record<string, { date: string; maxWeight: number }> = {}
+      logs?.forEach(l => {
+        if (!bySession[l.session_id]) {
+          bySession[l.session_id] = { date: l.logged_at.split('T')[0], maxWeight: l.weight_kg }
+        } else {
+          bySession[l.session_id].maxWeight = Math.max(bySession[l.session_id].maxWeight, l.weight_kg)
+        }
+      })
+
+      const data = Object.values(bySession).map(s => ({
+        date: s.date.slice(5), // MM-DD
+        value: s.maxWeight,
+      }))
+      setCargaData(data)
+    }
+
+    loadCarga()
+  }, [selectedExercise, profileId])
+
+  if (!activeProfile) return null
+
+  return (
+    <div className="min-h-screen pb-24 pt-safe">
+      <div className="px-5 pt-6 pb-4">
+        <h1 className="text-2xl font-bold text-white">Evolução</h1>
+      </div>
+
+      <div className="px-4 space-y-4">
+        {/* Streak */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] flex gap-4">
+          <div className="flex-1 text-center">
+            <p className="text-3xl font-bold text-white">{streak}</p>
+            <p className="text-xs text-[#888] mt-1">🔥 Sequência atual</p>
+          </div>
+          <div className="w-px bg-[#2A2A2A]" />
+          <div className="flex-1 text-center">
+            <p className="text-3xl font-bold text-white">{maxStreak}</p>
+            <p className="text-xs text-[#888] mt-1">🏆 Melhor sequência</p>
+          </div>
+        </div>
+
+        {/* Frequency grid */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
+          <p className="text-sm font-medium text-white mb-3">Frequência — 28 dias</p>
+          <div className="grid grid-cols-7 gap-1">
+            {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+              <p key={i} className="text-center text-[10px] text-[#888] pb-1">{d}</p>
+            ))}
+            {frequencyGrid.map((day, i) => (
+              <div
+                key={i}
+                className="aspect-square rounded-md"
+                style={{
+                  backgroundColor: day.status === 'done' ? '#27AE60' : day.status === 'rest' ? '#2A2A2A' : '#1A1A1A',
+                  border: `1px solid ${day.status === 'done' ? '#27AE60' : day.status === 'rest' ? '#333' : '#E74C3C33'}`,
+                }}
+                title={day.date}
+              />
+            ))}
+          </div>
+          <div className="flex gap-4 mt-3">
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#27AE60]" /><span className="text-xs text-[#888]">Treino</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#2A2A2A]" /><span className="text-xs text-[#888]">Descanso</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#E74C3C22', border: '1px solid #E74C3C44' }} /><span className="text-xs text-[#888]">Faltou</span></div>
+          </div>
+        </div>
+
+        {/* Carga por exercício */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
+          <p className="text-sm font-medium text-white mb-3">Evolução de Carga</p>
+          {exercises.length > 0 ? (
+            <>
+              <select
+                value={selectedExercise}
+                onChange={e => setSelectedExercise(e.target.value)}
+                className="w-full bg-[#2A2A2A] text-white text-sm rounded-xl px-3 py-2 mb-3 outline-none border border-[#3A3A3A]"
+              >
+                {exercises.map(ex => (
+                  <option key={ex.id} value={ex.id}>{ex.name}</option>
+                ))}
+              </select>
+              <GraficoEvolucao data={cargaData} label="Carga (kg)" unit="kg" color={color} />
+            </>
+          ) : (
+            <p className="text-xs text-[#888] text-center py-4">Complete treinos para ver a evolução de carga.</p>
+          )}
+        </div>
+
+        {/* Proteína semanal */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
+          <p className="text-sm font-medium text-white mb-3">Proteína Semanal</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={weeklyProtein} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" />
+              <XAxis dataKey="day" tick={{ fill: '#888', fontSize: 10 }} tickLine={false} />
+              <YAxis tick={{ fill: '#888', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }}
+                formatter={(v) => [`${v}g`, 'Proteína']}
+              />
+              <ReferenceLine y={proteinGoal} stroke="#27AE60" strokeDasharray="4 4" />
+              <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-[#888] text-center mt-1">Linha verde = meta {proteinGoal}g/dia</p>
+        </div>
+
+        {/* Exams — Mizael only */}
+        {activeProfile === 'mizael' && exams.length > 0 && (
+          <ExamProgress exams={exams} onUpdate={() => {
+            supabase.from('exam_results').select('*').eq('profile_id', profileId).order('logged_date', { ascending: false })
+              .then(({ data }) => {
+                const latest: Record<string, any> = {}
+                data?.forEach(e => { if (!latest[e.exam_name]) latest[e.exam_name] = e })
+                setExams(Object.values(latest))
+              })
+          }} />
+        )}
+      </div>
+
+      <BottomNav />
+    </div>
+  )
+}

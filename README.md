@@ -1,36 +1,152 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaMiza Fit
 
-## Getting Started
+PWA de treino e alimentação personalizada para Tamires e Mizael.
 
-First, run the development server:
+---
+
+## Setup Local
 
 ```bash
+# 1. Instalar dependencias
+npm install
+
+# 2. Configurar variaveis de ambiente
+# Edite o .env.local com suas credenciais do Supabase
+
+# 3. Rodar em desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Acesse http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuracao Supabase
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Criar projeto
+- Acesse supabase.com e crie uma conta gratuita
+- Crie um novo projeto (free tier)
+- Aguarde o setup (~2 min)
 
-## Learn More
+### 2. Criar schema
+No SQL Editor do Supabase, execute:
 
-To learn more about Next.js, take a look at the following resources:
+```sql
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  age INTEGER, weight_kg DECIMAL, height_cm DECIMAL,
+  goal TEXT, protein_goal_g INTEGER, color_primary TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE workouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  name TEXT NOT NULL, day_of_week INTEGER, type TEXT,
+  duration_min INTEGER, focus TEXT, order_index INTEGER
+);
+CREATE TABLE exercises (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workout_id UUID REFERENCES workouts(id),
+  name TEXT NOT NULL, sets INTEGER, reps TEXT,
+  rest_seconds INTEGER, initial_weight_kg DECIMAL,
+  notes TEXT, exercise_type TEXT, order_index INTEGER
+);
+CREATE TABLE workout_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  workout_id UUID REFERENCES workouts(id),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  finished_at TIMESTAMPTZ, duration_min INTEGER,
+  completed BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE set_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES workout_sessions(id),
+  exercise_id UUID REFERENCES exercises(id),
+  set_number INTEGER, weight_kg DECIMAL, reps_done INTEGER,
+  completed BOOLEAN DEFAULT FALSE,
+  logged_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE meals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  day_type TEXT, meal_name TEXT NOT NULL,
+  time_label TEXT, protein_g INTEGER, order_index INTEGER
+);
+CREATE TABLE meal_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  meal_id UUID REFERENCES meals(id),
+  description TEXT NOT NULL, is_tip BOOLEAN DEFAULT FALSE,
+  order_index INTEGER
+);
+CREATE TABLE meal_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  meal_id UUID REFERENCES meals(id),
+  logged_date DATE DEFAULT CURRENT_DATE,
+  completed BOOLEAN DEFAULT FALSE,
+  logged_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE water_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  logged_date DATE DEFAULT CURRENT_DATE,
+  glasses INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE exam_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  exam_name TEXT, value DECIMAL, unit TEXT, goal DECIMAL,
+  logged_date DATE DEFAULT CURRENT_DATE
+);
+CREATE TABLE beer_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES profiles(id),
+  logged_date DATE DEFAULT CURRENT_DATE, count INTEGER DEFAULT 0
+);
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Configurar variaveis
+No painel do Supabase: Settings -> API
+- Copie a Project URL e a anon public key
+- Cole no .env.local:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
-## Deploy on Vercel
+### 4. Popular dados iniciais
+Apos rodar npm run dev, acesse uma unica vez:
+```
+http://localhost:3000/api/seed
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy na Vercel
+
+1. Crie repositorio no GitHub e faca push
+2. Acesse vercel.com e importe o repositorio
+3. Em Environment Variables, adicione:
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+4. Clique em Deploy
+
+---
+
+## Instalar no iPhone (PWA)
+
+1. Abra no Safari
+2. Toque em Compartilhar (seta para cima)
+3. Selecione "Adicionar a Tela de Inicio"
+4. Confirme o nome "TaMiza Fit"
+
+---
+
+## Stack
+
+- Next.js 14 (App Router)
+- Supabase (PostgreSQL)
+- Tailwind CSS + Recharts + Zustand + next-pwa

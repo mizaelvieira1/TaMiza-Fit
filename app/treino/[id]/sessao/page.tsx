@@ -1,0 +1,253 @@
+'use client'
+import { useEffect, useState, useRef } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { ArrowLeft, Check, ChevronRight, ChevronDown } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useProfileStore } from '@/store/profileStore'
+import { useSessionStore } from '@/store/sessionStore'
+import { TimerDescanso } from '@/components/TimerDescanso'
+
+export default function SessaoPage() {
+  const router = useRouter()
+  const { id } = useParams()
+  const { activeProfile, profileId } = useProfileStore()
+  const { sessionId, currentExerciseIndex, currentSetIndex, setSessionId, setCurrentExercise, setCurrentSet, startTimer, stopTimer, resetSession } = useSessionStore()
+
+  const [workout, setWorkout] = useState<any>(null)
+  const [exercises, setExercises] = useState<any[]>([])
+  const [completed, setCompleted] = useState<Record<string, boolean>>({})
+  const [weights, setWeights] = useState<Record<string, number>>({})
+  const [sessionStarted, setSessionStarted] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [showChecklist, setShowChecklist] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const startTimeRef = useRef<number>(Date.now())
+
+  const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
+  const currentExercise = exercises[currentExerciseIndex]
+  const totalSets = currentExercise?.sets || 1
+
+  useEffect(() => {
+    if (!activeProfile) { router.replace('/'); return }
+    if (!id || !profileId) return
+
+    async function load() {
+      const { data: w } = await supabase.from('workouts').select('*').eq('id', id).single()
+      setWorkout(w)
+      const { data: exs } = await supabase.from('exercises').select('*').eq('workout_id', id).order('order_index')
+      const list = exs || []
+      setExercises(list)
+
+      // Pre-fill weights from last session
+      const { data: sessions } = await supabase
+        .from('workout_sessions').select('id').eq('profile_id', profileId).eq('workout_id', id).eq('completed', true).order('finished_at', { ascending: false }).limit(1)
+
+      if (sessions && sessions.length > 0) {
+        const { data: logs } = await supabase.from('set_logs').select('exercise_id, weight_kg').eq('session_id', sessions[0].id).eq('completed', true)
+        const w: Record<string, number> = {}
+        logs?.forEach(l => { if (!w[l.exercise_id]) w[l.exercise_id] = l.weight_kg })
+        setWeights(w)
+      } else {
+        const defaultW: Record<string, number> = {}
+        list.forEach((ex: any) => { defaultW[ex.id] = ex.initial_weight_kg })
+        setWeights(defaultW)
+      }
+
+      setLoading(false)
+    }
+    load()
+  }, [id, profileId, activeProfile])
+
+  async function startSession() {
+    if (!profileId) return
+    const { data: s } = await supabase.from('workout_sessions').insert({ profile_id: profileId, workout_id: id, started_at: new Date().toISOString() }).select().single()
+    if (s) { setSessionId(s.id); setSessionStarted(true); startTimeRef.current = Date.now() }
+  }
+
+  async function completeSet() {
+    if (!sessionId || !currentExercise) return
+    const key = `${currentExercise.id}_${currentSetIndex}`
+    setCompleted(prev => ({ ...prev, [key]: true }))
+
+    await supabase.from('set_logs').insert({
+      session_id: sessionId,
+      exercise_id: currentExercise.id,
+      set_number: currentSetIndex + 1,
+      weight_kg: weights[currentExercise.id] || 0,
+      reps_done: 0,
+      completed: true,
+      logged_at: new Date().toISOString(),
+    })
+
+    if (currentExercise.rest_seconds > 0) {
+      startTimer(currentExercise.rest_seconds)
+    } else {
+      advanceSet()
+    }
+  }
+
+  function advanceSet() {
+    stopTimer()
+    if (currentSetIndex + 1 < totalSets) {
+      setCurrentSet(currentSetIndex + 1)
+    } else {
+      // Move to next exercise
+      const nextIdx = currentExerciseIndex + 1
+      if (nextIdx < exercises.length) {
+        setCurrentExercise(nextIdx)
+        setCurrentSet(0)
+      } else {
+        finishWorkout()
+      }
+    }
+  }
+
+  async function finishWorkout() {
+    if (!sessionId) return
+    const dur = Math.round((Date.now() - startTimeRef.current) / 60000)
+    setDuration(dur)
+    await supabase.from('workout_sessions').update({ finished_at: new Date().toISOString(), completed: true, duration_min: dur }).eq('id', sessionId)
+    setFinished(true)
+    resetSession()
+  }
+
+  if (!activeProfile) return null
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#333] border-t-white rounded-full animate-spin" /></div>
+
+  if (finished) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h2 className="text-2xl font-bold text-white mb-2">Treino Concluído!</h2>
+        <p className="text-[#888] mb-1">{workout?.name}</p>
+        <p className="text-sm text-[#888] mb-8">Duração: {duration} minutos</p>
+        <div className="w-full space-y-3">
+          <button onClick={() => { resetSession(); router.push('/treino') }} className="w-full py-4 rounded-2xl text-base font-bold" style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}>
+            Voltar aos Treinos
+          </button>
+          <button onClick={() => { resetSession(); router.push('/home') }} className="w-full py-4 rounded-2xl text-base font-medium bg-[#1A1A1A] text-white border border-[#2A2A2A]">
+            Ir para o Início
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!sessionStarted) {
+    return (
+      <div className="min-h-screen flex flex-col pt-safe">
+        <div className="flex items-center gap-3 px-5 pt-6 pb-4">
+          <button onClick={() => router.back()} className="p-2 rounded-xl bg-[#1A1A1A]"><ArrowLeft size={18} className="text-white" /></button>
+          <h1 className="text-lg font-bold text-white">{workout?.name}</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <div className="text-5xl mb-4">💪</div>
+          <p className="text-white font-semibold text-lg mb-2">Pronto para começar?</p>
+          <p className="text-[#888] text-sm mb-8">{exercises.length} exercícios • {workout?.duration_min} min</p>
+          <button onClick={startSession} className="w-full py-4 rounded-2xl text-base font-bold active:scale-95 transition-transform" style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}>
+            Iniciar Treino
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const exercisesDone = exercises.filter((_, i) => i < currentExerciseIndex).length
+  const progressPct = Math.round((exercisesDone / exercises.length) * 100)
+
+  return (
+    <div className="min-h-screen pb-8 pt-safe flex flex-col">
+      <div className="flex items-center gap-3 px-5 pt-6 pb-3">
+        <button onClick={() => router.back()} className="p-2 rounded-xl bg-[#1A1A1A]"><ArrowLeft size={18} className="text-white" /></button>
+        <div className="flex-1">
+          <p className="text-xs text-[#888]">{workout?.name}</p>
+          <div className="h-1.5 bg-[#2A2A2A] rounded-full mt-1 overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${progressPct}%`, backgroundColor: color }} />
+          </div>
+        </div>
+        <span className="text-xs text-[#888]">{exercisesDone}/{exercises.length}</span>
+      </div>
+
+      <div className="px-4 flex-1">
+        {currentExercise && (
+          <div className="bg-[#1A1A1A] rounded-2xl p-5 border border-[#2A2A2A] mb-4">
+            <p className="text-xs text-[#888] mb-1">Exercício {currentExerciseIndex + 1} de {exercises.length}</p>
+            <h2 className="text-xl font-bold text-white mb-1">{currentExercise.name}</h2>
+            {currentExercise.notes && <p className="text-xs text-[#888] mb-3">{currentExercise.notes}</p>}
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold" style={{ color }}>{currentSetIndex + 1}<span className="text-[#888] text-sm font-normal"> / {totalSets}</span></p>
+                <p className="text-xs text-[#888]">Série</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white">{currentExercise.reps}</p>
+                <p className="text-xs text-[#888]">Reps</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white">{currentExercise.rest_seconds}s</p>
+                <p className="text-xs text-[#888]">Descanso</p>
+              </div>
+            </div>
+
+            {/* Weight input */}
+            <div className="mb-4">
+              <p className="text-xs text-[#888] mb-1">Carga (kg)</p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: Math.max(0, (w[currentExercise.id] || 0) - 0.5) }))}
+                  className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
+                >−</button>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={weights[currentExercise.id] || 0}
+                  onChange={e => setWeights(w => ({ ...w, [currentExercise.id]: parseFloat(e.target.value) || 0 }))}
+                  className="flex-1 bg-[#2A2A2A] rounded-xl text-center text-2xl font-bold text-white py-2.5 outline-none border border-[#3A3A3A] focus:border-white"
+                />
+                <button
+                  onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: (w[currentExercise.id] || 0) + 0.5 }))}
+                  className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
+                >+</button>
+              </div>
+            </div>
+
+            <button
+              onClick={completeSet}
+              className="w-full py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-2 active:scale-[0.97] transition-transform"
+              style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}
+            >
+              <Check size={18} strokeWidth={3} /> Série Concluída
+            </button>
+          </div>
+        )}
+
+        <TimerDescanso onComplete={advanceSet} />
+
+        {/* Checklist */}
+        <button
+          onClick={() => setShowChecklist(s => !s)}
+          className="flex items-center gap-2 text-sm text-[#888] mt-4 mb-2"
+        >
+          <ChevronDown size={14} className={`transition-transform ${showChecklist ? 'rotate-180' : ''}`} />
+          Todos os exercícios
+        </button>
+
+        {showChecklist && (
+          <div className="space-y-1.5">
+            {exercises.map((ex, i) => (
+              <div key={ex.id} className={`flex items-center gap-2 p-2 rounded-xl ${i === currentExerciseIndex ? 'bg-[#2A2A2A]' : ''}`}>
+                <div className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${i < currentExerciseIndex ? 'bg-[#27AE60] border-[#27AE60]' : 'border-[#444]'}`}>
+                  {i < currentExerciseIndex && <Check size={10} color="#fff" strokeWidth={3} />}
+                </div>
+                <span className={`text-xs ${i < currentExerciseIndex ? 'text-[#888] line-through' : 'text-white'}`}>{ex.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
