@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
 import type { Meal } from '@/data/tamires/alimentacao'
+import { getLocalDate } from '@/lib/dateUtils'
 
 interface MealCardProps {
   meal: Meal
@@ -19,7 +20,7 @@ export function MealCard({ meal, mealId, completed, onToggle }: MealCardProps) {
 
   async function toggle() {
     if (!profileId) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDate()
     const newCompleted = !completed
 
     const { data: existing } = await supabase

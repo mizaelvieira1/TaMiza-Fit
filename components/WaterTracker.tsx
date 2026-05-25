@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Droplets } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
+import { getLocalDate } from '@/lib/dateUtils'
 
 interface WaterTrackerProps {
   glasses: number
@@ -19,7 +20,7 @@ export function WaterTracker({ glasses, goal, logId, onUpdate }: WaterTrackerPro
     if (glasses >= goal || loading || !profileId) return
     setLoading(true)
     const newCount = glasses + 1
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDate()
 
     if (logId) {
       await supabase.from('water_logs').update({ glasses: newCount, updated_at: new Date().toISOString() }).eq('id', logId)

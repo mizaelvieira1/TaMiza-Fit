@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
+import { getLocalDate, getDayType, DAY_NAMES, MONTH_NAMES } from '@/lib/dateUtils'
 import { BottomNav } from '@/components/BottomNav'
 import { MealCard } from '@/components/MealCard'
 import { WaterTracker } from '@/components/WaterTracker'
@@ -18,12 +19,6 @@ const DAY_TYPE_LABELS: Record<string, string> = {
   fds: 'Fim de Semana',
 }
 
-function getDayType(day: number) {
-  if (day === 0 || day === 6) return 'fds'
-  if (day === 5) return 'sexta'
-  return 'semana'
-}
-
 export default function AlimentacaoPage() {
   const router = useRouter()
   const { activeProfile, profileId } = useProfileStore()
@@ -37,27 +32,47 @@ export default function AlimentacaoPage() {
   const [selectedDayType, setSelectedDayType] = useState(getDayType(new Date().getDay()))
   const [loading, setLoading] = useState(true)
 
+  const todayDayType = getDayType(new Date().getDay())
   const refeicoes = activeProfile === 'tamires' ? TAMIRES_REFEICOES : MIZAEL_REFEICOES
   const localMeals: Meal[] = refeicoes[selectedDayType] || refeicoes['semana'] || []
   const proteinGoal = activeProfile === 'tamires' ? 128 : 150
   const waterGoal = 10
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
 
+  // Data local para exibição no cabeçalho
+  const now = new Date()
+  const dateLabel = `${DAY_NAMES[now.getDay()]}, ${now.getDate()} de ${MONTH_NAMES[now.getMonth()]}`
+
   useEffect(() => {
     if (!activeProfile) { router.replace('/'); return }
     if (!profileId) return
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDate()  // Usa data local (não UTC) para evitar troca de dia às 21h BRT
+    setLoading(true)
 
-    // Load DB meals
-    supabase.from('meals').select('id, meal_name, protein_g, day_type, order_index').eq('profile_id', profileId).eq('day_type', selectedDayType).order('order_index')
+    // Carrega refeições do banco
+    supabase
+      .from('meals')
+      .select('id, meal_name, protein_g, day_type, order_index')
+      .eq('profile_id', profileId)
+      .eq('day_type', selectedDayType)
+      .order('order_index')
       .then(async ({ data: meals }) => {
-        setDbMeals(meals || [])
+        // Deduplica pelo nome da refeição (evita exibição duplicada em caso de seed repetido)
+        const uniqueMeals = (meals || []).filter((m: any, idx: number, arr: any[]) =>
+          arr.findIndex(x => x.meal_name === m.meal_name) === idx)
+        setDbMeals(uniqueMeals)
 
-        const { data: logs } = await supabase.from('meal_logs').select('meal_id, completed').eq('profile_id', profileId).eq('logged_date', today)
+        // Carrega apenas os logs de HOJE (data local)
+        const { data: logs } = await supabase
+          .from('meal_logs')
+          .select('meal_id, completed')
+          .eq('profile_id', profileId)
+          .eq('logged_date', today)
+
         const status: Record<string, boolean> = {}
         let protein = 0
-        meals?.forEach(m => {
+        uniqueMeals.forEach(m => {
           const log = logs?.find(l => l.meal_id === m.id)
           status[m.id] = log?.completed || false
           if (log?.completed) protein += m.protein_g || 0
@@ -67,17 +82,31 @@ export default function AlimentacaoPage() {
         setLoading(false)
       })
 
-    // Load water
-    supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', today).single()
+    // Carrega água
+    supabase
+      .from('water_logs')
+      .select('*')
+      .eq('profile_id', profileId)
+      .eq('logged_date', today)
+      .single()
       .then(({ data }) => {
         if (data) { setWaterGlasses(data.glasses); setWaterLogId(data.id) }
       })
 
-    // Load beer (Mizael only)
+    // Carrega cervejas (Mizael, apenas fim de semana)
     if (activeProfile === 'mizael') {
-      supabase.from('beer_logs').select('*').eq('profile_id', profileId).eq('logged_date', today).single()
+      supabase
+        .from('beer_logs')
+        .select('*')
+        .eq('profile_id', profileId)
+        .eq('logged_date', today)
         .then(({ data }) => {
-          if (data) { setBeerCount(data.count); setBeerLogId(data.id) }
+          if (data && data.length > 0) {
+            // Usa o registro com maior contagem (lida com duplicatas caso existam)
+            const best = data.reduce((a: any, b: any) => b.count > a.count ? b : a, data[0])
+            setBeerCount(best.count)
+            setBeerLogId(best.id)
+          }
         })
     }
   }, [activeProfile, profileId, selectedDayType])
@@ -96,34 +125,48 @@ export default function AlimentacaoPage() {
 
   return (
     <div className="min-h-screen pb-24 pt-safe">
+      {/* Cabeçalho com data atual */}
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-white">Alimentação</h1>
+        <p className="text-xs text-[#888] mt-0.5">{dateLabel} · marcações de hoje</p>
       </div>
 
-      {/* Day type selector */}
+      {/* Seletor de tipo de dia com indicador "hoje" */}
       <div className="flex gap-2 px-4 mb-4 overflow-x-auto pb-1">
-        {dayTypes.map(dt => (
-          <button
-            key={dt}
-            onClick={() => setSelectedDayType(dt)}
-            className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-            style={{
-              backgroundColor: selectedDayType === dt ? color : '#1A1A1A',
-              color: selectedDayType === dt ? (activeProfile === 'tamires' ? '#fff' : '#000') : '#888',
-              border: `1px solid ${selectedDayType === dt ? color : '#2A2A2A'}`,
-            }}
-          >
-            {DAY_TYPE_LABELS[dt]}
-          </button>
-        ))}
+        {dayTypes.map(dt => {
+          const isToday = dt === todayDayType
+          const isActive = dt === selectedDayType
+          return (
+            <button
+              key={dt}
+              onClick={() => setSelectedDayType(dt)}
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                backgroundColor: isActive ? color : '#1A1A1A',
+                color: isActive ? (activeProfile === 'tamires' ? '#fff' : '#000') : '#888',
+                border: `1px solid ${isActive ? color : '#2A2A2A'}`,
+              }}
+            >
+              {DAY_TYPE_LABELS[dt]}
+              {isToday && (
+                <span
+                  className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle mb-0.5"
+                  style={{ backgroundColor: isActive ? (activeProfile === 'tamires' ? '#fff' : '#000') : color }}
+                />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       <div className="px-4 space-y-3">
         <ProteinBar consumed={proteinConsumed} goal={proteinGoal} />
 
-        {/* Meals from DB or local */}
+        {/* Refeições */}
         {loading ? (
-          <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-[#333] border-t-white rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-[#333] border-t-white rounded-full animate-spin" />
+          </div>
         ) : dbMeals.length > 0 ? (
           dbMeals.map((meal, i) => {
             const localMeal = localMeals[i] || { name: meal.meal_name, timeLabel: '', proteinG: meal.protein_g, items: [], tip: '' }
@@ -141,10 +184,12 @@ export default function AlimentacaoPage() {
           localMeals.map((meal, i) => (
             <div key={i} className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
               <p className="text-sm font-semibold text-white mb-1">{meal.name}</p>
-              <p className="text-xs text-[#888]">{meal.timeLabel} • {meal.proteinG}g prot</p>
+              <p className="text-xs text-[#888]">{meal.timeLabel} · {meal.proteinG}g prot</p>
               <ul className="mt-2 space-y-1">
                 {meal.items.map((item, j) => (
-                  <li key={j} className="text-xs text-[#aaa] flex gap-2"><span className="text-[#555]">•</span>{item}</li>
+                  <li key={j} className="text-xs text-[#aaa] flex gap-2">
+                    <span className="text-[#555]">•</span>{item}
+                  </li>
                 ))}
               </ul>
               {meal.tip && <p className="text-xs mt-2 font-medium" style={{ color }}>💡 {meal.tip}</p>}
@@ -152,10 +197,20 @@ export default function AlimentacaoPage() {
           ))
         )}
 
-        <WaterTracker glasses={waterGlasses} goal={waterGoal} logId={waterLogId} onUpdate={setWaterGlasses} />
+        <WaterTracker
+          glasses={waterGlasses}
+          goal={waterGoal}
+          logId={waterLogId}
+          onUpdate={setWaterGlasses}
+        />
 
         {activeProfile === 'mizael' && (
-          <BeerCounter count={beerCount} logId={beerLogId} onUpdate={setBeerCount} />
+          <BeerCounter
+            count={beerCount}
+            logId={beerLogId}
+            onUpdate={setBeerCount}
+            onUpdateLogId={setBeerLogId}
+          />
         )}
       </div>
 

@@ -14,6 +14,7 @@ import { MIZAEL_TREINOS } from '@/data/mizael/treinos'
 import { TAMIRES_REFEICOES, TAMIRES_FRASES } from '@/data/tamires/alimentacao'
 import { MIZAEL_REFEICOES } from '@/data/mizael/alimentacao'
 import { useStreakDias } from '@/hooks/useStreakDias'
+import { getLocalDate } from '@/lib/dateUtils'
 
 const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 const MONTH_NAMES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -62,7 +63,7 @@ export default function HomePage() {
     if (!activeProfile) { router.replace('/'); return }
     if (local || !profileId) return
 
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = getLocalDate()  // Data local (não UTC) — evita troca de dia às 21h BRT
 
     supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', todayStr).single()
       .then(({ data }) => {

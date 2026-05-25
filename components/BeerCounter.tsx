@@ -2,14 +2,16 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
+import { getLocalDate } from '@/lib/dateUtils'
 
 interface BeerCounterProps {
   count: number
   logId: string | null
   onUpdate: (count: number) => void
+  onUpdateLogId: (id: string) => void
 }
 
-export function BeerCounter({ count, logId, onUpdate }: BeerCounterProps) {
+export function BeerCounter({ count, logId, onUpdate, onUpdateLogId }: BeerCounterProps) {
   const { profileId } = useProfileStore()
   const [loading, setLoading] = useState(false)
   const max = 2
@@ -22,12 +24,18 @@ export function BeerCounter({ count, logId, onUpdate }: BeerCounterProps) {
     if (count >= max || loading || !profileId) return
     setLoading(true)
     const newCount = count + 1
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDate()
 
     if (logId) {
       await supabase.from('beer_logs').update({ count: newCount }).eq('id', logId)
     } else {
-      await supabase.from('beer_logs').insert({ profile_id: profileId, logged_date: today, count: newCount })
+      // Primeiro registro do dia: INSERT e captura o ID retornado
+      const { data } = await supabase
+        .from('beer_logs')
+        .insert({ profile_id: profileId, logged_date: today, count: newCount })
+        .select()
+        .single()
+      if (data?.id) onUpdateLogId(data.id)
     }
     onUpdate(newCount)
     setLoading(false)
@@ -39,12 +47,10 @@ export function BeerCounter({ count, logId, onUpdate }: BeerCounterProps) {
     const newCount = count - 1
     if (logId) {
       await supabase.from('beer_logs').update({ count: newCount }).eq('id', logId)
+      onUpdate(newCount)
     }
-    onUpdate(newCount)
     setLoading(false)
   }
-
-  const beerColors = ['#888', '#F5A623', '#E67E22']
 
   return (
     <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
