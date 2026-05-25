@@ -1,9 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
-import { getLocalDate, getDayType, DAY_NAMES, MONTH_NAMES } from '@/lib/dateUtils'
+import {
+  getLocalDate, dateToStr, addDays, isSameDay,
+  getDayType, DAY_NAMES, MONTH_NAMES,
+} from '@/lib/dateUtils'
 import { BottomNav } from '@/components/BottomNav'
 import { MealCard } from '@/components/MealCard'
 import { WaterTracker } from '@/components/WaterTracker'
@@ -13,15 +17,13 @@ import { TAMIRES_REFEICOES } from '@/data/tamires/alimentacao'
 import { MIZAEL_REFEICOES } from '@/data/mizael/alimentacao'
 import type { Meal } from '@/data/tamires/alimentacao'
 
-const DAY_TYPE_LABELS: Record<string, string> = {
-  semana: 'Seg — Qui',
-  sexta: 'Sexta-feira',
-  fds: 'Fim de Semana',
-}
-
 export default function AlimentacaoPage() {
   const router = useRouter()
   const { activeProfile, profileId } = useProfileStore()
+
+  // Data selecionada — começa em hoje
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
+
   const [dbMeals, setDbMeals] = useState<any[]>([])
   const [mealStatus, setMealStatus] = useState<Record<string, boolean>>({})
   const [proteinConsumed, setProteinConsumed] = useState(0)
@@ -29,46 +31,56 @@ export default function AlimentacaoPage() {
   const [waterLogId, setWaterLogId] = useState<string | null>(null)
   const [beerCount, setBeerCount] = useState(0)
   const [beerLogId, setBeerLogId] = useState<string | null>(null)
-  const [selectedDayType, setSelectedDayType] = useState(getDayType(new Date().getDay()))
   const [loading, setLoading] = useState(true)
 
-  const todayDayType = getDayType(new Date().getDay())
+  const today = new Date()
+  const isToday = isSameDay(selectedDate, today)
+  const isFuture = selectedDate > today && !isToday
+  const dayType = getDayType(selectedDate.getDay())
+  const dateStr = dateToStr(selectedDate)
+
   const refeicoes = activeProfile === 'tamires' ? TAMIRES_REFEICOES : MIZAEL_REFEICOES
-  const localMeals: Meal[] = refeicoes[selectedDayType] || refeicoes['semana'] || []
+  const localMeals: Meal[] = refeicoes[dayType] || refeicoes['semana'] || []
   const proteinGoal = activeProfile === 'tamires' ? 128 : 150
   const waterGoal = 10
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
 
-  // Data local para exibição no cabeçalho
-  const now = new Date()
-  const dateLabel = `${DAY_NAMES[now.getDay()]}, ${now.getDate()} de ${MONTH_NAMES[now.getMonth()]}`
+  // Navegar dias
+  function prevDay() {
+    setSelectedDate(d => addDays(d, -1))
+  }
+  function nextDay() {
+    if (!isToday) setSelectedDate(d => addDays(d, 1))
+  }
 
   useEffect(() => {
     if (!activeProfile) { router.replace('/'); return }
     if (!profileId) return
 
-    const today = getLocalDate()  // Usa data local (não UTC) para evitar troca de dia às 21h BRT
     setLoading(true)
+    setWaterGlasses(0)
+    setWaterLogId(null)
+    setBeerCount(0)
+    setBeerLogId(null)
 
-    // Carrega refeições do banco
+    // Refeições do banco para esse tipo de dia
     supabase
       .from('meals')
       .select('id, meal_name, protein_g, day_type, order_index')
       .eq('profile_id', profileId)
-      .eq('day_type', selectedDayType)
+      .eq('day_type', dayType)
       .order('order_index')
       .then(async ({ data: meals }) => {
-        // Deduplica pelo nome da refeição (evita exibição duplicada em caso de seed repetido)
         const uniqueMeals = (meals || []).filter((m: any, idx: number, arr: any[]) =>
           arr.findIndex(x => x.meal_name === m.meal_name) === idx)
         setDbMeals(uniqueMeals)
 
-        // Carrega apenas os logs de HOJE (data local)
+        // Logs de marcação para a data selecionada
         const { data: logs } = await supabase
           .from('meal_logs')
           .select('meal_id, completed')
           .eq('profile_id', profileId)
-          .eq('logged_date', today)
+          .eq('logged_date', dateStr)
 
         const status: Record<string, boolean> = {}
         let protein = 0
@@ -82,34 +94,33 @@ export default function AlimentacaoPage() {
         setLoading(false)
       })
 
-    // Carrega água
+    // Água para a data selecionada
     supabase
       .from('water_logs')
       .select('*')
       .eq('profile_id', profileId)
-      .eq('logged_date', today)
+      .eq('logged_date', dateStr)
       .single()
       .then(({ data }) => {
         if (data) { setWaterGlasses(data.glasses); setWaterLogId(data.id) }
       })
 
-    // Carrega cervejas (Mizael, apenas fim de semana)
+    // Cervejas para a data selecionada (Mizael)
     if (activeProfile === 'mizael') {
       supabase
         .from('beer_logs')
         .select('*')
         .eq('profile_id', profileId)
-        .eq('logged_date', today)
+        .eq('logged_date', dateStr)
         .then(({ data }) => {
           if (data && data.length > 0) {
-            // Usa o registro com maior contagem (lida com duplicatas caso existam)
             const best = data.reduce((a: any, b: any) => b.count > a.count ? b : a, data[0])
             setBeerCount(best.count)
             setBeerLogId(best.id)
           }
         })
     }
-  }, [activeProfile, profileId, selectedDayType])
+  }, [activeProfile, profileId, dateStr])
 
   function handleMealToggle(mealId: string, done: boolean) {
     setMealStatus(prev => ({ ...prev, [mealId]: done }))
@@ -121,42 +132,45 @@ export default function AlimentacaoPage() {
 
   if (!activeProfile) return null
 
-  const dayTypes = activeProfile === 'tamires' ? ['semana', 'sexta', 'fds'] : ['semana', 'fds']
+  // Rótulo do tipo de dia
+  const DAY_TYPE_LABEL: Record<string, string> = {
+    semana: 'Dia de semana',
+    sexta: 'Sexta-feira',
+    fds: 'Fim de semana',
+  }
 
   return (
     <div className="min-h-screen pb-28 pt-safe">
-      {/* Cabeçalho com data atual */}
-      <div className="px-5 pt-6 pb-4">
-        <h1 className="text-2xl font-bold text-white">Alimentação</h1>
-        <p className="text-xs text-[#888] mt-0.5">{dateLabel} · marcações de hoje</p>
-      </div>
+      {/* Cabeçalho fixo com navegação de data */}
+      <div className="px-4 pt-6 pb-4">
+        <h1 className="text-2xl font-bold text-white mb-4">Alimentação</h1>
 
-      {/* Seletor de tipo de dia com indicador "hoje" */}
-      <div className="flex gap-2 px-4 mb-4 overflow-x-auto pb-1">
-        {dayTypes.map(dt => {
-          const isToday = dt === todayDayType
-          const isActive = dt === selectedDayType
-          return (
-            <button
-              key={dt}
-              onClick={() => setSelectedDayType(dt)}
-              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-              style={{
-                backgroundColor: isActive ? color : '#1A1A1A',
-                color: isActive ? (activeProfile === 'tamires' ? '#fff' : '#000') : '#888',
-                border: `1px solid ${isActive ? color : '#2A2A2A'}`,
-              }}
-            >
-              {DAY_TYPE_LABELS[dt]}
-              {isToday && (
-                <span
-                  className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle mb-0.5"
-                  style={{ backgroundColor: isActive ? (activeProfile === 'tamires' ? '#fff' : '#000') : color }}
-                />
-              )}
-            </button>
-          )
-        })}
+        {/* Navegador de data */}
+        <div className="flex items-center justify-between bg-[#1A1A1A] rounded-2xl border border-[#2A2A2A] px-3 py-3">
+          <button
+            onClick={prevDay}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#2A2A2A] active:scale-90 transition-transform"
+          >
+            <ChevronLeft size={18} className="text-white" />
+          </button>
+
+          <div className="text-center flex-1">
+            <p className="text-base font-bold text-white leading-tight">
+              {DAY_NAMES[selectedDate.getDay()]}, {selectedDate.getDate()} de {MONTH_NAMES[selectedDate.getMonth()]}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: isToday ? color : '#888' }}>
+              {isToday ? '● hoje' : DAY_TYPE_LABEL[dayType]}
+            </p>
+          </div>
+
+          <button
+            onClick={nextDay}
+            disabled={isToday}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#2A2A2A] active:scale-90 transition-transform disabled:opacity-25"
+          >
+            <ChevronRight size={18} className="text-white" />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 space-y-3">
@@ -177,6 +191,7 @@ export default function AlimentacaoPage() {
                 mealId={meal.id}
                 completed={mealStatus[meal.id] || false}
                 onToggle={handleMealToggle}
+                loggedDate={dateStr}
               />
             )
           })
@@ -201,6 +216,7 @@ export default function AlimentacaoPage() {
           glasses={waterGlasses}
           goal={waterGoal}
           logId={waterLogId}
+          loggedDate={dateStr}
           onUpdate={setWaterGlasses}
         />
 
@@ -208,6 +224,7 @@ export default function AlimentacaoPage() {
           <BeerCounter
             count={beerCount}
             logId={beerLogId}
+            loggedDate={dateStr}
             onUpdate={setBeerCount}
             onUpdateLogId={setBeerLogId}
           />

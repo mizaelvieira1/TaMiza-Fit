@@ -10,22 +10,24 @@ interface WaterTrackerProps {
   goal: number
   logId: string | null
   onUpdate: (glasses: number) => void
+  /** Data a registrar (YYYY-MM-DD). Padrão: hoje */
+  loggedDate?: string
 }
 
-export function WaterTracker({ glasses, goal, logId, onUpdate }: WaterTrackerProps) {
+export function WaterTracker({ glasses, goal, logId, onUpdate, loggedDate }: WaterTrackerProps) {
   const { profileId } = useProfileStore()
   const [loading, setLoading] = useState(false)
+  const targetDate = loggedDate ?? getLocalDate()
 
   async function addGlass() {
     if (glasses >= goal || loading || !profileId) return
     setLoading(true)
     const newCount = glasses + 1
-    const today = getLocalDate()
 
     if (logId) {
       await supabase.from('water_logs').update({ glasses: newCount, updated_at: new Date().toISOString() }).eq('id', logId)
     } else {
-      await supabase.from('water_logs').insert({ profile_id: profileId, logged_date: today, glasses: newCount })
+      await supabase.from('water_logs').insert({ profile_id: profileId, logged_date: targetDate, glasses: newCount })
     }
     onUpdate(newCount)
     setLoading(false)

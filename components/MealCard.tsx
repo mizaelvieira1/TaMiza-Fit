@@ -11,16 +11,18 @@ interface MealCardProps {
   mealId: string
   completed: boolean
   onToggle: (mealId: string, completed: boolean) => void
+  /** Data a registrar (YYYY-MM-DD). Padrão: hoje */
+  loggedDate?: string
 }
 
-export function MealCard({ meal, mealId, completed, onToggle }: MealCardProps) {
+export function MealCard({ meal, mealId, completed, onToggle, loggedDate }: MealCardProps) {
   const [expanded, setExpanded] = useState(false)
   const { profileId, activeProfile } = useProfileStore()
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
+  const targetDate = loggedDate ?? getLocalDate()
 
   async function toggle() {
     if (!profileId) return
-    const today = getLocalDate()
     const newCompleted = !completed
 
     const { data: existing } = await supabase
@@ -28,13 +30,18 @@ export function MealCard({ meal, mealId, completed, onToggle }: MealCardProps) {
       .select('id')
       .eq('profile_id', profileId)
       .eq('meal_id', mealId)
-      .eq('logged_date', today)
+      .eq('logged_date', targetDate)
       .single()
 
     if (existing) {
       await supabase.from('meal_logs').update({ completed: newCompleted }).eq('id', existing.id)
     } else {
-      await supabase.from('meal_logs').insert({ profile_id: profileId, meal_id: mealId, logged_date: today, completed: newCompleted })
+      await supabase.from('meal_logs').insert({
+        profile_id: profileId,
+        meal_id: mealId,
+        logged_date: targetDate,
+        completed: newCompleted,
+      })
     }
     onToggle(mealId, newCompleted)
   }

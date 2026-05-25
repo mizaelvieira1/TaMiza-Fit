@@ -9,30 +9,32 @@ interface BeerCounterProps {
   logId: string | null
   onUpdate: (count: number) => void
   onUpdateLogId: (id: string) => void
+  /** Data a registrar (YYYY-MM-DD). Padrão: hoje */
+  loggedDate?: string
 }
 
-export function BeerCounter({ count, logId, onUpdate, onUpdateLogId }: BeerCounterProps) {
+export function BeerCounter({ count, logId, onUpdate, onUpdateLogId, loggedDate }: BeerCounterProps) {
   const { profileId } = useProfileStore()
   const [loading, setLoading] = useState(false)
   const max = 2
+  const targetDate = loggedDate ?? getLocalDate()
 
-  const day = new Date().getDay()
-  const isWeekend = day === 0 || day === 6
+  // Exibe apenas em fins de semana (sáb/dom) — ou quando navegando para um FDS retroativo
+  const targetDay = new Date(targetDate + 'T12:00:00').getDay()
+  const isWeekend = targetDay === 0 || targetDay === 6
   if (!isWeekend) return null
 
   async function addBeer() {
     if (count >= max || loading || !profileId) return
     setLoading(true)
     const newCount = count + 1
-    const today = getLocalDate()
 
     if (logId) {
       await supabase.from('beer_logs').update({ count: newCount }).eq('id', logId)
     } else {
-      // Primeiro registro do dia: INSERT e captura o ID retornado
       const { data } = await supabase
         .from('beer_logs')
-        .insert({ profile_id: profileId, logged_date: today, count: newCount })
+        .insert({ profile_id: profileId, logged_date: targetDate, count: newCount })
         .select()
         .single()
       if (data?.id) onUpdateLogId(data.id)
