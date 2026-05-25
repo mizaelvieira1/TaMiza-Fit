@@ -143,7 +143,7 @@ export default function EvolucaoPage() {
   if (!activeProfile) return null
 
   return (
-    <div className="min-h-screen pb-24 pt-safe">
+    <div className="min-h-screen pb-28 pt-safe">
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-white">Evolução</h1>
       </div>

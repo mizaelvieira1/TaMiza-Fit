@@ -101,7 +101,7 @@ export default function HomePage() {
   const mealsToShow = local ? localMeals : dbMeals
 
   return (
-    <div className="min-h-screen pb-24 pt-safe">
+    <div className="min-h-screen pb-28 pt-safe">
       {/* Header */}
       <div className="flex justify-between items-center px-5 pt-6 pb-4">
         <div>

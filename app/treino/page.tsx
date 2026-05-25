@@ -89,7 +89,7 @@ export default function TreinoPage() {
   if (!activeProfile) return null
 
   return (
-    <div className="min-h-screen pb-24 pt-safe">
+    <div className="min-h-screen pb-28 pt-safe">
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-white">Treinos</h1>
         <p className="text-xs text-[#888] mt-1">Semana de treino personalizada</p>

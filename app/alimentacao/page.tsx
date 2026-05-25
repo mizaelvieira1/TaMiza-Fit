@@ -124,7 +124,7 @@ export default function AlimentacaoPage() {
   const dayTypes = activeProfile === 'tamires' ? ['semana', 'sexta', 'fds'] : ['semana', 'fds']
 
   return (
-    <div className="min-h-screen pb-24 pt-safe">
+    <div className="min-h-screen pb-28 pt-safe">
       {/* Cabeçalho com data atual */}
       <div className="px-5 pt-6 pb-4">
         <h1 className="text-2xl font-bold text-white">Alimentação</h1>
