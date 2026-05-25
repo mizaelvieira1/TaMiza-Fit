@@ -8,6 +8,8 @@ import { GraficoEvolucao } from '@/components/GraficoEvolucao'
 import { ExamProgress } from '@/components/ExamProgress'
 import { useStreakDias } from '@/hooks/useStreakDias'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { WeightInput } from '@/components/WeightInput'
+import { getLocalDate } from '@/lib/dateUtils'
 
 export default function EvolucaoPage() {
   const router = useRouter()
@@ -21,6 +23,10 @@ export default function EvolucaoPage() {
   const [weeklyProtein, setWeeklyProtein] = useState<{ day: string; value: number }[]>([])
   const [frequencyGrid, setFrequencyGrid] = useState<{ date: string; status: 'done' | 'rest' | 'missed' }[]>([])
   const [loading, setLoading] = useState(true)
+  // Peso
+  const [weightHistory, setWeightHistory] = useState<{ date: string; value: number }[]>([])
+  const [todayWeight, setTodayWeight] = useState<number | null>(null)
+  const [todayWeightId, setTodayWeightId] = useState<string | null>(null)
 
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
   const proteinGoal = activeProfile === 'tamires' ? 128 : 150
@@ -30,6 +36,29 @@ export default function EvolucaoPage() {
     if (!profileId) return
 
     async function load() {
+      // Peso — histórico dos últimos 30 registros
+      const { data: wLogs } = await supabase
+        .from('weight_logs')
+        .select('id, logged_date, weight_kg')
+        .eq('profile_id', profileId)
+        .order('logged_date', { ascending: true })
+        .limit(30)
+
+      if (wLogs) {
+        const history = wLogs.map(w => ({
+          date: w.logged_date.slice(5), // MM-DD
+          value: parseFloat(w.weight_kg),
+        }))
+        setWeightHistory(history)
+
+        const today = getLocalDate()
+        const todayLog = wLogs.find(w => w.logged_date === today)
+        if (todayLog) {
+          setTodayWeight(parseFloat(todayLog.weight_kg))
+          setTodayWeightId(todayLog.id)
+        }
+      }
+
       // Load exercises for selector
       const { data: exs } = await supabase
         .from('exercises')
@@ -149,6 +178,24 @@ export default function EvolucaoPage() {
       </div>
 
       <div className="px-4 space-y-4">
+        {/* Peso */}
+        <WeightInput
+          history={weightHistory}
+          todayWeight={todayWeight}
+          todayLogId={todayWeightId}
+          goalWeight={activeProfile === 'mizael' ? 76 : undefined}
+          onSaved={(kg, id) => {
+            setTodayWeight(kg)
+            setTodayWeightId(id)
+            // Atualiza histórico localmente
+            const today = getLocalDate().slice(5)
+            setWeightHistory(prev => {
+              const without = prev.filter(p => p.date !== today)
+              return [...without, { date: today, value: kg }].sort((a, b) => a.date.localeCompare(b.date))
+            })
+          }}
+        />
+
         {/* Streak */}
         <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] flex gap-4">
           <div className="flex-1 text-center">

@@ -22,6 +22,8 @@ export default function SessaoPage() {
   const [loading, setLoading] = useState(true)
   const [showChecklist, setShowChecklist] = useState(false)
   const [duration, setDuration] = useState(0)
+  const [mood, setMood] = useState<string | null>(null)
+  const [finishedSessionId, setFinishedSessionId] = useState<string | null>(null)
   const startTimeRef = useRef<number>(Date.now())
 
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
@@ -107,13 +109,28 @@ export default function SessaoPage() {
     if (!sessionId) return
     const dur = Math.round((Date.now() - startTimeRef.current) / 60000)
     setDuration(dur)
+    setFinishedSessionId(sessionId)  // Guarda antes do resetSession limpar
     await supabase.from('workout_sessions').update({ finished_at: new Date().toISOString(), completed: true, duration_min: dur }).eq('id', sessionId)
     setFinished(true)
     resetSession()
   }
 
+  async function saveMood(selectedMood: string) {
+    setMood(selectedMood)
+    if (!finishedSessionId) return
+    await supabase.from('workout_sessions').update({ mood: selectedMood }).eq('id', finishedSessionId)
+  }
+
   if (!activeProfile) return null
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#333] border-t-white rounded-full animate-spin" /></div>
+
+  const MOODS = [
+    { key: 'exausto',  emoji: '😴', label: 'Exausto'  },
+    { key: 'ok',       emoji: '😐', label: 'Ok'       },
+    { key: 'bem',      emoji: '🙂', label: 'Bem'      },
+    { key: 'otimo',    emoji: '💪', label: 'Ótimo'    },
+    { key: 'fogo',     emoji: '⚡', label: 'Em chamas'},
+  ]
 
   if (finished) {
     return (
@@ -121,12 +138,46 @@ export default function SessaoPage() {
         <div className="text-6xl mb-4">🎉</div>
         <h2 className="text-2xl font-bold text-white mb-2">Treino Concluído!</h2>
         <p className="text-[#888] mb-1">{workout?.name}</p>
-        <p className="text-sm text-[#888] mb-8">Duração: {duration} minutos</p>
+        <p className="text-sm text-[#888] mb-6">Duração: {duration} minutos</p>
+
+        {/* Seletor de humor */}
+        <div className="w-full bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] mb-6">
+          <p className="text-sm font-medium text-white mb-3">Como foi o treino?</p>
+          <div className="flex justify-around">
+            {MOODS.map(m => (
+              <button
+                key={m.key}
+                onClick={() => saveMood(m.key)}
+                className="flex flex-col items-center gap-1 transition-all active:scale-90"
+              >
+                <span
+                  className="text-3xl w-12 h-12 flex items-center justify-center rounded-xl transition-all"
+                  style={{
+                    backgroundColor: mood === m.key ? color + '33' : '#2A2A2A',
+                    border: `2px solid ${mood === m.key ? color : 'transparent'}`,
+                    filter: mood && mood !== m.key ? 'grayscale(1) opacity(0.4)' : 'none',
+                  }}
+                >
+                  {m.emoji}
+                </span>
+                <span className="text-[10px] text-[#888]">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="w-full space-y-3">
-          <button onClick={() => { resetSession(); router.push('/treino') }} className="w-full py-4 rounded-2xl text-base font-bold" style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}>
+          <button
+            onClick={() => { resetSession(); router.push('/treino') }}
+            className="w-full py-4 rounded-2xl text-base font-bold"
+            style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}
+          >
             Voltar aos Treinos
           </button>
-          <button onClick={() => { resetSession(); router.push('/home') }} className="w-full py-4 rounded-2xl text-base font-medium bg-[#1A1A1A] text-white border border-[#2A2A2A]">
+          <button
+            onClick={() => { resetSession(); router.push('/home') }}
+            className="w-full py-4 rounded-2xl text-base font-medium bg-[#1A1A1A] text-white border border-[#2A2A2A]"
+          >
             Ir para o Início
           </button>
         </div>
