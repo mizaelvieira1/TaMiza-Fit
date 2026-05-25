@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { runSeed } from '@/lib/supabase-seed'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const result = await runSeed()
