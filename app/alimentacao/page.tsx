@@ -36,7 +36,9 @@ export default function AlimentacaoPage() {
   const today = new Date()
   const isToday = isSameDay(selectedDate, today)
   const isFuture = selectedDate > today && !isToday
-  const dayType = getDayType(selectedDate.getDay())
+  const rawDayType = getDayType(selectedDate.getDay())
+  // Mizael não tem plano especial de sexta → usa semana
+  const dayType = (activeProfile === 'mizael' && rawDayType === 'sexta') ? 'semana' : rawDayType
   const dateStr = dateToStr(selectedDate)
 
   const refeicoes = activeProfile === 'tamires' ? TAMIRES_REFEICOES : MIZAEL_REFEICOES
