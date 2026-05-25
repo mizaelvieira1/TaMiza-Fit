@@ -102,9 +102,10 @@ export default function AlimentacaoPage() {
       .select('*')
       .eq('profile_id', profileId)
       .eq('logged_date', dateStr)
-      .single()
+      .order('glasses', { ascending: false })
+      .limit(1)
       .then(({ data }) => {
-        if (data) { setWaterGlasses(data.glasses); setWaterLogId(data.id) }
+        if (data && data.length > 0) { setWaterGlasses(data[0].glasses); setWaterLogId(data[0].id) }
       })
 
     // Cervejas para a data selecionada (Mizael)
@@ -220,6 +221,7 @@ export default function AlimentacaoPage() {
           logId={waterLogId}
           loggedDate={dateStr}
           onUpdate={setWaterGlasses}
+          onUpdateLogId={setWaterLogId}
         />
 
         {activeProfile === 'mizael' && (

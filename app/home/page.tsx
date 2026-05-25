@@ -65,9 +65,10 @@ export default function HomePage() {
 
     const todayStr = getLocalDate()  // Data local (não UTC) — evita troca de dia às 21h BRT
 
-    supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', todayStr).single()
+    supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', todayStr)
+      .order('glasses', { ascending: false }).limit(1)
       .then(({ data }) => {
-        if (data) { setWaterGlasses(data.glasses); setWaterLogId(data.id) }
+        if (data && data.length > 0) { setWaterGlasses(data[0].glasses); setWaterLogId(data[0].id) }
       })
 
     supabase.from('meals').select('id, meal_name, protein_g').eq('profile_id', profileId).eq('day_type', dayType)
@@ -187,7 +188,7 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          <WaterTracker glasses={waterGlasses} goal={waterGoal} logId={waterLogId} onUpdate={setWaterGlasses} />
+          <WaterTracker glasses={waterGlasses} goal={waterGoal} logId={waterLogId} onUpdate={setWaterGlasses} onUpdateLogId={setWaterLogId} />
         )}
 
         {/* Refeições do dia */}
