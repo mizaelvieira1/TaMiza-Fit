@@ -39,3 +39,5 @@ next-env.d.ts
 dev-log.txt
 test-output.txt
 .claude/
+
+.vercel
