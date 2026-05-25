@@ -4,38 +4,42 @@ import { useSessionStore } from '@/store/sessionStore'
 
 interface TimerDescansoProps {
   onComplete: () => void
+  /** Duração total do descanso (para barra de progresso). */
+  maxSeconds?: number
 }
 
-export function TimerDescanso({ onComplete }: TimerDescansoProps) {
+export function TimerDescanso({ onComplete, maxSeconds = 60 }: TimerDescansoProps) {
   const { timerActive, timerSeconds, decrementTimer, stopTimer } = useSessionStore()
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
+  const intervalRef   = useRef<NodeJS.Timeout | null>(null)
+  const prevActiveRef = useRef(false)
+  const completedRef  = useRef(false)   // evita chamar onComplete duas vezes
 
+  // Tick do timer
   useEffect(() => {
     if (timerActive) {
-      intervalRef.current = setInterval(() => {
-        decrementTimer()
-      }, 1000)
+      completedRef.current = false
+      intervalRef.current = setInterval(() => decrementTimer(), 1000)
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [timerActive, decrementTimer])
 
+  // Detecta fim natural do timer (transição timerActive: true → false com segundos = 0)
   useEffect(() => {
-    if (timerSeconds === 0 && !timerActive) return
-    if (timerSeconds === 0 && timerActive === false) {
+    const wasActive = prevActiveRef.current
+    prevActiveRef.current = timerActive
+
+    if (wasActive && !timerActive && timerSeconds === 0 && !completedRef.current) {
+      completedRef.current = true
       playBeep()
       onComplete()
     }
-  }, [timerSeconds, timerActive])
+  }, [timerActive, timerSeconds])
 
   function playBeep() {
     try {
       const ctx = new AudioContext()
-      audioCtxRef.current = ctx
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
@@ -50,15 +54,15 @@ export function TimerDescanso({ onComplete }: TimerDescansoProps) {
 
   if (!timerActive && timerSeconds === 0) return null
 
-  const pct = timerSeconds > 0 ? ((timerSeconds) / (timerSeconds + 1)) * 100 : 0
+  const pct = maxSeconds > 0 ? (timerSeconds / maxSeconds) * 100 : 0
 
   return (
     <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] mt-4">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-white">Descanso</span>
+        <span className="text-sm font-medium text-white">⏳ Descansando</span>
         <button
-          onClick={() => { stopTimer(); onComplete() }}
-          className="text-xs text-[#888] underline"
+          onClick={() => { completedRef.current = true; stopTimer(); onComplete() }}
+          className="text-xs text-[#888] underline active:text-white"
         >
           Pular
         </button>
