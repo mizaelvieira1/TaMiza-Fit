@@ -43,6 +43,8 @@ export default function HomePage() {
   const [dbMealStatus, setDbMealStatus] = useState<Record<string, boolean>>({})
   const [localMealStatus, setLocalMealStatus] = useState<Record<number, boolean>>({})
   const [dbMeals, setDbMeals] = useState<any[]>([])
+  const [todayDbWorkoutId, setTodayDbWorkoutId] = useState<string | null>(null)
+  const [workoutCompleted, setWorkoutCompleted] = useState(false)
 
   const today = new Date()
   const dayOfWeek = today.getDay()
@@ -64,6 +66,18 @@ export default function HomePage() {
     if (local || !profileId) return
 
     const todayStr = getLocalDate()  // Data local (não UTC) — evita troca de dia às 21h BRT
+
+    // Treino de hoje — verifica se já foi concluído
+    supabase.from('workouts').select('id').eq('profile_id', profileId).eq('day_of_week', dayOfWeek).limit(1)
+      .then(async ({ data: workouts }) => {
+        if (!workouts || workouts.length === 0) return
+        const wid = workouts[0].id
+        setTodayDbWorkoutId(wid)
+        const { data: sessions } = await supabase.from('workout_sessions')
+          .select('id').eq('profile_id', profileId).eq('workout_id', wid).eq('completed', true)
+          .gte('started_at', todayStr + 'T00:00:00').limit(1)
+        if (sessions && sessions.length > 0) setWorkoutCompleted(true)
+      })
 
     supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', todayStr)
       .order('glasses', { ascending: false }).limit(1)
@@ -133,7 +147,10 @@ export default function HomePage() {
               <p className="text-xs text-[#555] mt-1">Recuperação é parte do treino.</p>
             </div>
           ) : (
-            <Link href="/treino" className="block bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] active:scale-[0.98] transition-transform">
+            <Link
+              href={workoutCompleted ? '/treino' : (todayDbWorkoutId ? `/treino/${todayDbWorkoutId}` : '/treino')}
+              className="block bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] active:scale-[0.98] transition-transform"
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-[#888] mb-1">Treino de Hoje</p>
@@ -148,9 +165,15 @@ export default function HomePage() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold flex-shrink-0" style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}>
-                  Iniciar <ChevronRight size={14} />
-                </div>
+                {workoutCompleted ? (
+                  <div className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold flex-shrink-0 bg-[#27AE60]/20 text-[#27AE60]">
+                    <Check size={14} /> Feito
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold flex-shrink-0" style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}>
+                    Iniciar <ChevronRight size={14} />
+                  </div>
+                )}
               </div>
             </Link>
           )
