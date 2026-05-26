@@ -67,16 +67,29 @@ export default function HomePage() {
 
     const todayStr = getLocalDate()  // Data local (não UTC) — evita troca de dia às 21h BRT
 
-    // Treino de hoje — verifica se já foi concluído
+    // Treino de hoje — pega o ID para o link "Iniciar"
     supabase.from('workouts').select('id').eq('profile_id', profileId).eq('day_of_week', dayOfWeek).limit(1)
-      .then(async ({ data: workouts }) => {
-        if (!workouts || workouts.length === 0) return
-        const wid = workouts[0].id
-        setTodayDbWorkoutId(wid)
-        const { data: sessions } = await supabase.from('workout_sessions')
-          .select('id').eq('profile_id', profileId).eq('workout_id', wid).eq('completed', true)
-          .gte('started_at', todayStr + 'T00:00:00').limit(1)
-        if (sessions && sessions.length > 0) setWorkoutCompleted(true)
+      .then(({ data: workouts }) => {
+        if (workouts && workouts.length > 0) setTodayDbWorkoutId(workouts[0].id)
+      })
+
+    // Verifica se QUALQUER treino foi concluído hoje (independente do workout_id)
+    // Busca nas últimas 36h e filtra pela data local no cliente — evita problema de timezone
+    const since = new Date(Date.now() - 36 * 3600000).toISOString()
+    supabase.from('workout_sessions')
+      .select('started_at')
+      .eq('profile_id', profileId)
+      .eq('completed', true)
+      .gte('started_at', since)
+      .then(({ data: sessions }) => {
+        const now = new Date()
+        const doneToday = (sessions || []).some(s => {
+          const d = new Date(s.started_at)
+          return d.getFullYear() === now.getFullYear() &&
+                 d.getMonth()    === now.getMonth()    &&
+                 d.getDate()     === now.getDate()
+        })
+        if (doneToday) setWorkoutCompleted(true)
       })
 
     supabase.from('water_logs').select('*').eq('profile_id', profileId).eq('logged_date', todayStr)
