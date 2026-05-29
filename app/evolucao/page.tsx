@@ -136,7 +136,8 @@ export default function EvolucaoPage() {
 
         // Compara por data local para não errar após as 21h BRT
         const daySession = sessions?.find(s => dateToStr(new Date(s.started_at)) === localDate)
-        const status = daySession?.completed ? 'done' : isRestDay ? 'rest' : 'missed'
+        // Qualquer sessão iniciada no dia conta como feito (não exige completed=true)
+        const status = daySession ? 'done' : isRestDay ? 'rest' : 'missed'
         grid.push({ date: localDate, status })
       }
       setFrequencyGrid(grid)

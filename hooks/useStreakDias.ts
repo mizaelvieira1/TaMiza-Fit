@@ -15,18 +15,18 @@ export function useStreakDias(profileId: string | null) {
     if (!profileId) return
 
     async function calc() {
+      // Usa started_at (sempre preenchido) — completed pode ser false se saiu antes da tela final
       const { data: sessions } = await supabase
         .from('workout_sessions')
-        .select('finished_at')
+        .select('started_at')
         .eq('profile_id', profileId)
-        .eq('completed', true)
-        .order('finished_at', { ascending: false })
+        .order('started_at', { ascending: false })
 
       if (!sessions || sessions.length === 0) return
 
       // Usa data LOCAL para evitar troca de dia às 21h BRT (UTC-3)
       const dates = Array.from(new Set(
-        sessions.map(s => toLocalDateStr(s.finished_at))
+        sessions.map(s => toLocalDateStr(s.started_at))
       )).sort((a, b) => b.localeCompare(a))
 
       let current = 0
@@ -35,8 +35,9 @@ export function useStreakDias(profileId: string | null) {
 
       const now  = new Date()
       const yest = new Date(); yest.setDate(yest.getDate() - 1)
-      const today     = toLocalDateStr(now.toISOString())
-      const yesterday = toLocalDateStr(yest.toISOString())
+      // Usa a data local diretamente, sem converter para ISO (evita bug de UTC)
+      const today     = toLocalDateStr(now.toString())
+      const yesterday = toLocalDateStr(yest.toString())
 
       if (dates[0] === today || dates[0] === yesterday) {
         current = 1
