@@ -155,12 +155,17 @@ export default function SessaoPage() {
   async function finishWorkout() {
     if (!sessionId) return
     const dur = Math.round((Date.now() - startTimeRef.current) / 60000)
-    setDuration(dur)
-    setFinishedSessionId(sessionId)
-    await supabase
-      .from('workout_sessions')
+    const sid = sessionId // captura antes do resetSession limpar
+
+    // Fire-and-forget: não bloqueia a UI; a requisição já foi enviada mesmo
+    // se o usuário fechar o app logo depois
+    supabase.from('workout_sessions')
       .update({ finished_at: new Date().toISOString(), completed: true, duration_min: dur })
-      .eq('id', sessionId)
+      .eq('id', sid)
+      .then()
+
+    setDuration(dur)
+    setFinishedSessionId(sid)
     setFinished(true)
     resetSession()
   }

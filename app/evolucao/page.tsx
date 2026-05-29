@@ -115,11 +115,28 @@ export default function EvolucaoPage() {
 
       // Frequency grid — last 28 days, alinhado aos cabeçalhos D S T Q Q S S
       const grid: { date: string; status: 'done' | 'rest' | 'missed' | 'empty' }[] = []
-      const { data: sessions } = await supabase
+
+      // 1. Sessões dos últimos 29 dias
+      const { data: recentSessions } = await supabase
         .from('workout_sessions')
-        .select('started_at, completed')
+        .select('id, started_at')
         .eq('profile_id', profileId)
         .gte('started_at', new Date(Date.now() - 29 * 86400000).toISOString())
+
+      // 2. set_logs dessas sessões — um dia está "feito" se tem série registrada
+      //    (mais confiável que completed=true, que só é setado na tela final)
+      const recentSessionIds = recentSessions?.map(s => s.id) || []
+      const datesWithWork = new Set<string>()
+      if (recentSessionIds.length > 0) {
+        const { data: recentSetLogs } = await supabase
+          .from('set_logs')
+          .select('logged_at')
+          .in('session_id', recentSessionIds)
+          .eq('completed', true)
+        recentSetLogs?.forEach(l => {
+          datesWithWork.add(dateToStr(new Date(l.logged_at)))
+        })
+      }
 
       // Padding para alinhar coluna com o dia da semana correto
       const firstDay = new Date(Date.now() - 27 * 86400000)
@@ -130,14 +147,11 @@ export default function EvolucaoPage() {
 
       for (let i = 27; i >= 0; i--) {
         const d = new Date(Date.now() - i * 86400000)
-        const localDate = dateToStr(d)           // data LOCAL, não UTC
-        const dayOfWeek = d.getDay()
-        const isRestDay = dayOfWeek === 0        // domingo = descanso
+        const localDate = dateToStr(d)
+        const isRestDay = d.getDay() === 0  // domingo = descanso
 
-        // Compara por data local para não errar após as 21h BRT
-        const daySession = sessions?.find(s => dateToStr(new Date(s.started_at)) === localDate)
-        // Domingo é sempre descanso; nos outros dias, qualquer sessão iniciada conta como feito
-        const status = isRestDay ? 'rest' : daySession ? 'done' : 'missed'
+        // Domingo sempre descanso; nos outros dias, conta se tem série registrada
+        const status = isRestDay ? 'rest' : datesWithWork.has(localDate) ? 'done' : 'missed'
         grid.push({ date: localDate, status })
       }
       setFrequencyGrid(grid)
