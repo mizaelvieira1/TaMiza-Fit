@@ -9,7 +9,7 @@ import { ExamProgress } from '@/components/ExamProgress'
 import { useStreakDias } from '@/hooks/useStreakDias'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { WeightInput } from '@/components/WeightInput'
-import { getLocalDate } from '@/lib/dateUtils'
+import { getLocalDate, dateToStr } from '@/lib/dateUtils'
 
 export default function EvolucaoPage() {
   const router = useRouter()
@@ -21,7 +21,7 @@ export default function EvolucaoPage() {
   const [cargaData, setCargaData] = useState<{ date: string; value: number }[]>([])
   const [exams, setExams] = useState<any[]>([])
   const [weeklyProtein, setWeeklyProtein] = useState<{ day: string; value: number }[]>([])
-  const [frequencyGrid, setFrequencyGrid] = useState<{ date: string; status: 'done' | 'rest' | 'missed' }[]>([])
+  const [frequencyGrid, setFrequencyGrid] = useState<{ date: string; status: 'done' | 'rest' | 'missed' | 'empty' }[]>([])
   const [loading, setLoading] = useState(true)
   // Peso
   const [weightHistory, setWeightHistory] = useState<{ date: string; value: number }[]>([])
@@ -113,22 +113,31 @@ export default function EvolucaoPage() {
       }
       setWeeklyProtein(proteinByDay)
 
-      // Frequency grid — last 28 days
-      const grid: { date: string; status: 'done' | 'rest' | 'missed' }[] = []
+      // Frequency grid — last 28 days, alinhado aos cabeçalhos D S T Q Q S S
+      const grid: { date: string; status: 'done' | 'rest' | 'missed' | 'empty' }[] = []
       const { data: sessions } = await supabase
         .from('workout_sessions')
         .select('started_at, completed')
         .eq('profile_id', profileId)
-        .gte('started_at', new Date(Date.now() - 28 * 86400000).toISOString())
+        .gte('started_at', new Date(Date.now() - 29 * 86400000).toISOString())
+
+      // Padding para alinhar coluna com o dia da semana correto
+      const firstDay = new Date(Date.now() - 27 * 86400000)
+      const paddingCount = firstDay.getDay() // 0=Dom … 6=Sáb
+      for (let p = 0; p < paddingCount; p++) {
+        grid.push({ date: '', status: 'empty' })
+      }
 
       for (let i = 27; i >= 0; i--) {
         const d = new Date(Date.now() - i * 86400000)
-        const dateStr = d.toISOString().split('T')[0]
-        const daySession = sessions?.find(s => s.started_at.startsWith(dateStr))
+        const localDate = dateToStr(d)           // data LOCAL, não UTC
         const dayOfWeek = d.getDay()
-        const isRestDay = dayOfWeek === 0
+        const isRestDay = dayOfWeek === 0        // domingo = descanso
+
+        // Compara por data local para não errar após as 21h BRT
+        const daySession = sessions?.find(s => dateToStr(new Date(s.started_at)) === localDate)
         const status = daySession?.completed ? 'done' : isRestDay ? 'rest' : 'missed'
-        grid.push({ date: dateStr, status })
+        grid.push({ date: localDate, status })
       }
       setFrequencyGrid(grid)
 
@@ -220,18 +229,25 @@ export default function EvolucaoPage() {
               <div
                 key={i}
                 className="aspect-square rounded-md"
-                style={{
-                  backgroundColor: day.status === 'done' ? '#27AE60' : day.status === 'rest' ? '#2A2A2A' : '#1A1A1A',
-                  border: `1px solid ${day.status === 'done' ? '#27AE60' : day.status === 'rest' ? '#333' : '#E74C3C33'}`,
+                style={day.status === 'empty' ? { backgroundColor: 'transparent' } : {
+                  backgroundColor:
+                    day.status === 'done'   ? '#27AE60' :
+                    day.status === 'rest'   ? '#2A2A2A' :
+                    '#2D1515',
+                  border: `1px solid ${
+                    day.status === 'done'   ? '#27AE60' :
+                    day.status === 'rest'   ? '#333' :
+                    '#E74C3C66'
+                  }`,
                 }}
                 title={day.date}
               />
             ))}
           </div>
           <div className="flex gap-4 mt-3">
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#27AE60]" /><span className="text-xs text-[#888]">Treino</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#2A2A2A]" /><span className="text-xs text-[#888]">Descanso</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#E74C3C22', border: '1px solid #E74C3C44' }} /><span className="text-xs text-[#888]">Faltou</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#27AE60]" /><span className="text-xs text-[#888]">Treino ✓</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#2A2A2A]" /><span className="text-xs text-[#888]">Domingo</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#2D1515', border: '1px solid #E74C3C66' }} /><span className="text-xs text-[#888]">Faltou</span></div>
           </div>
         </div>
 
