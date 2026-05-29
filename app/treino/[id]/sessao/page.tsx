@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useProfileStore } from '@/store/profileStore'
 import { useSessionStore } from '@/store/sessionStore'
 import { TimerDescanso } from '@/components/TimerDescanso'
+import { useExerciseGif } from '@/hooks/useExerciseGif'
 
 export default function SessaoPage() {
   const router = useRouter()
@@ -37,6 +38,7 @@ export default function SessaoPage() {
   const currentExercise = exercises[currentExerciseIndex]
   const isCardio  = (currentExercise?.rest_seconds ?? -1) === 0
   const totalSets = isCardio ? 1 : (currentExercise?.sets || 1)
+  const exerciseGif = useExerciseGif(currentExercise?.name || '')
 
   useEffect(() => {
     if (!activeProfile) { router.replace('/'); return }
@@ -309,6 +311,18 @@ export default function SessaoPage() {
                 </button>
               </div>
             </div>
+
+            {/* GIF demonstração */}
+            {exerciseGif && (
+              <div className="rounded-xl overflow-hidden mb-3 bg-[#111]" style={{ maxHeight: 180 }}>
+                <img
+                  src={exerciseGif}
+                  alt={currentExercise.name}
+                  className="w-full object-contain"
+                  style={{ maxHeight: 180 }}
+                />
+              </div>
+            )}
 
             <h2 className="text-xl font-bold text-white mb-1">{currentExercise.name}</h2>
             {currentExercise.notes && (
