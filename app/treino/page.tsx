@@ -154,19 +154,23 @@ export default function TreinoPage() {
                 </div>
 
                 {!isRest && (
-                  isDone ? (
-                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#27AE60]/20 text-[#27AE60] text-xs font-medium">
-                      <Check size={12} /> Feito
-                    </div>
-                  ) : (
+                  <div className="flex flex-col items-end gap-1.5">
+                    {isDone && (
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#27AE60]/20 text-[#27AE60] text-xs font-medium">
+                        <Check size={11} /> Feito
+                      </div>
+                    )}
                     <Link
                       href={dbWorkout ? `/treino/${dbWorkout.id}` : '#'}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                      style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}
+                      style={{
+                        backgroundColor: isDone ? '#2A2A2A' : color,
+                        color: isDone ? '#888' : (activeProfile === 'tamires' ? '#fff' : '#000'),
+                      }}
                     >
-                      {isToday ? 'Iniciar' : 'Ver'} <ChevronRight size={12} />
+                      {isToday && !isDone ? 'Iniciar' : 'Ver'} <ChevronRight size={12} />
                     </Link>
-                  )
+                  </div>
                 )}
               </div>
             </div>
