@@ -5,19 +5,20 @@ export const MIZAEL_REFEICOES: Record<string, Meal[]> = {
     {
       name: "Café da Manhã",
       timeLabel: "07:30",
-      proteinG: 21,
+      proteinG: 18,
       items: [
-        "3 ovos mexidos ou estrelados no azeite",
+        "2 ovos mexidos ou estrelados no azeite",
+        "1 fatia de mussarela",
         "2 fatias de pão integral",
         "1 fruta (banana, maçã ou mamão)",
         "Café sem açúcar",
       ],
-      tip: "Alternativa nos dias corridos: iogurte grego 200g + 2 col aveia + fruta"
+      tip: "Opção B nos dias que não der tempo: iogurte grego 200g + 2 col aveia + fruta"
     },
     {
       name: "Almoço",
       timeLabel: "14:00",
-      proteinG: 35,
+      proteinG: 50,
       items: [
         "Proteína grelhada ou assada (frango, carne ou peixe)",
         "Arroz + feijão — METADE do que pegaria normalmente",
@@ -57,7 +58,7 @@ export const MIZAEL_REFEICOES: Record<string, Meal[]> = {
     {
       name: "Jantar",
       timeLabel: "20:00-20:30",
-      proteinG: 38,
+      proteinG: 43,
       items: [
         "1 tapioca média",
         "Frango desfiado generoso",

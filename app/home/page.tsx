@@ -205,27 +205,7 @@ export default function HomePage() {
         <ProteinBar consumed={proteinConsumed} goal={proteinGoal} />
 
         {/* Água */}
-        {local ? (
-          <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A]">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-white">💧 Água</span>
-              <span className="text-xs text-[#888]">{waterGlasses}/{waterGoal} copos</span>
-            </div>
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {Array.from({ length: waterGoal }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setWaterGlasses(g => i < g ? i : i + 1)}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all ${i < waterGlasses ? 'bg-blue-500' : 'bg-[#2A2A2A]'}`}
-                >
-                  💧
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <WaterTracker glasses={waterGlasses} goal={waterGoal} logId={waterLogId} onUpdate={setWaterGlasses} onUpdateLogId={setWaterLogId} />
-        )}
+        <WaterTracker glasses={waterGlasses} goal={waterGoal} logId={waterLogId} onUpdate={setWaterGlasses} onUpdateLogId={setWaterLogId} />
 
         {/* Refeições do dia */}
         {mealsToShow.length > 0 && (
