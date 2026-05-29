@@ -48,15 +48,16 @@ const PT_TO_SLUG: Record<string, string> = {
   'Desaceleração':                        'stationary-bike',
 }
 
-/** Cache em memória para evitar requisições duplicadas */
-const gifCache: Record<string, string | null> = {}
+/** Cache client-side para não chamar a API duas vezes */
+const clientCache: Record<string, { url: string | null; isVideo: boolean }> = {}
 
-/**
- * Retorna a URL do GIF do exercício via muscles.wiki.
- * Retorna null enquanto carrega ou se não encontrar.
- */
-export function useExerciseGif(exerciseName: string): string | null {
-  const [gifUrl, setGifUrl] = useState<string | null>(null)
+export interface ExerciseGif {
+  url: string | null
+  isVideo: boolean
+}
+
+export function useExerciseGif(exerciseName: string): ExerciseGif {
+  const [result, setResult] = useState<ExerciseGif>({ url: null, isVideo: false })
 
   useEffect(() => {
     if (!exerciseName) return
@@ -64,27 +65,23 @@ export function useExerciseGif(exerciseName: string): string | null {
     const slug = PT_TO_SLUG[exerciseName]
     if (!slug) return
 
-    // Checa cache
-    if (gifCache[slug] !== undefined) {
-      setGifUrl(gifCache[slug])
+    // Checa cache client
+    if (clientCache[slug] !== undefined) {
+      setResult(clientCache[slug])
       return
     }
 
-    // muscles.wiki disponibiliza GIFs em CDN público
-    const url = `https://muscles.wiki/wp-content/uploads/${slug}.gif`
-
-    // Verifica se o URL responde antes de exibir
-    fetch(url, { method: 'HEAD', cache: 'force-cache' })
-      .then(res => {
-        const result = res.ok ? url : null
-        gifCache[slug] = result
-        setGifUrl(result)
+    // Busca via rota server-side (sem CORS, com cache de 24h)
+    fetch(`/api/exercise-gif?slug=${encodeURIComponent(slug)}`)
+      .then(r => r.json())
+      .then((data: ExerciseGif) => {
+        clientCache[slug] = data
+        setResult(data)
       })
       .catch(() => {
-        gifCache[slug] = null
-        setGifUrl(null)
+        clientCache[slug] = { url: null, isVideo: false }
       })
   }, [exerciseName])
 
-  return gifUrl
+  return result
 }

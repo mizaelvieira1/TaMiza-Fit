@@ -100,6 +100,7 @@ export default function TreinoDetailPage() {
               name={ex.name}
               sets={ex.sets}
               reps={ex.reps}
+              restSeconds={ex.rest_seconds}
               notes={ex.notes}
               initialWeightKg={lastWeights[ex.id] || ex.initial_weight_kg}
             />

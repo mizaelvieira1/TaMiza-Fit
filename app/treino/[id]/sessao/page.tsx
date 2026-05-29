@@ -38,7 +38,7 @@ export default function SessaoPage() {
   const currentExercise = exercises[currentExerciseIndex]
   const isCardio  = (currentExercise?.rest_seconds ?? -1) === 0
   const totalSets = isCardio ? 1 : (currentExercise?.sets || 1)
-  const exerciseGif = useExerciseGif(currentExercise?.name || '')
+  const exerciseGifData = useExerciseGif(currentExercise?.name || '')
 
   useEffect(() => {
     if (!activeProfile) { router.replace('/'); return }
@@ -313,14 +313,23 @@ export default function SessaoPage() {
             </div>
 
             {/* GIF demonstração */}
-            {exerciseGif && (
-              <div className="rounded-xl overflow-hidden mb-3 bg-[#111]" style={{ maxHeight: 180 }}>
-                <img
-                  src={exerciseGif}
-                  alt={currentExercise.name}
-                  className="w-full object-contain"
-                  style={{ maxHeight: 180 }}
-                />
+            {exerciseGifData.url && (
+              <div className="rounded-xl overflow-hidden mb-3 bg-[#111]" style={{ maxHeight: 200 }}>
+                {exerciseGifData.isVideo ? (
+                  <video
+                    src={exerciseGifData.url}
+                    autoPlay loop muted playsInline
+                    className="w-full object-contain"
+                    style={{ maxHeight: 200 }}
+                  />
+                ) : (
+                  <img
+                    src={exerciseGifData.url}
+                    alt={currentExercise.name}
+                    className="w-full object-contain"
+                    style={{ maxHeight: 200 }}
+                  />
+                )}
               </div>
             )}
 
