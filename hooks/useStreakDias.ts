@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+/** Converte timestamp ISO para data LOCAL (evita troca de dia no UTC) */
+function toLocalDateStr(isoStr: string): string {
+  const d = new Date(isoStr)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function useStreakDias(profileId: string | null) {
   const [streak, setStreak] = useState(0)
   const [maxStreak, setMaxStreak] = useState(0)
@@ -18,16 +24,19 @@ export function useStreakDias(profileId: string | null) {
 
       if (!sessions || sessions.length === 0) return
 
+      // Usa data LOCAL para evitar troca de dia às 21h BRT (UTC-3)
       const dates = Array.from(new Set(
-        sessions.map(s => s.finished_at.split('T')[0])
+        sessions.map(s => toLocalDateStr(s.finished_at))
       )).sort((a, b) => b.localeCompare(a))
 
       let current = 0
       let max = 0
       let temp = 1
 
-      const today = new Date().toISOString().split('T')[0]
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+      const now  = new Date()
+      const yest = new Date(); yest.setDate(yest.getDate() - 1)
+      const today     = toLocalDateStr(now.toISOString())
+      const yesterday = toLocalDateStr(yest.toISOString())
 
       if (dates[0] === today || dates[0] === yesterday) {
         current = 1

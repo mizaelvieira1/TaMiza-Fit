@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '@/store/sessionStore'
 
 interface TimerDescansoProps {
@@ -9,38 +9,62 @@ interface TimerDescansoProps {
 }
 
 export function TimerDescanso({ onComplete, maxSeconds = 60 }: TimerDescansoProps) {
-  const { timerActive, timerSeconds, decrementTimer, stopTimer } = useSessionStore()
-  const intervalRef   = useRef<NodeJS.Timeout | null>(null)
-  const prevActiveRef = useRef(false)
-  const completedRef  = useRef(false)   // evita chamar onComplete duas vezes
+  const { timerActive, timerEndTime, stopTimer } = useSessionStore()
+  const [displaySeconds, setDisplaySeconds] = useState(0)
+  const intervalRef  = useRef<NodeJS.Timeout | null>(null)
+  const completedRef = useRef(false)
 
-  // Tick do timer
+  function getRemaining(): number {
+    if (!timerEndTime) return 0
+    return Math.max(0, Math.ceil((timerEndTime - Date.now()) / 1000))
+  }
+
+  function handleExpired() {
+    if (completedRef.current) return
+    completedRef.current = true
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    stopTimer()
+    playBeep()
+    onComplete()
+  }
+
+  // Timer principal — usa timestamp absoluto: preciso mesmo após tela bloqueada
   useEffect(() => {
-    if (timerActive) {
+    if (timerActive && timerEndTime > 0) {
       completedRef.current = false
-      intervalRef.current = setInterval(() => decrementTimer(), 1000)
+
+      const tick = () => {
+        const remaining = getRemaining()
+        setDisplaySeconds(remaining)
+        if (remaining === 0) handleExpired()
+      }
+
+      tick() // tick imediato para exibir valor correto de cara
+      intervalRef.current = setInterval(tick, 250) // 4x/s para precisão
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      if (!timerActive) setDisplaySeconds(0)
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [timerActive, decrementTimer])
+  }, [timerActive, timerEndTime]) // eslint-disable-line
 
-  // Detecta fim natural do timer (transição timerActive: true → false com segundos = 0)
+  // Ao desbloquear a tela / retornar ao tab — recalcula imediatamente
   useEffect(() => {
-    const wasActive = prevActiveRef.current
-    prevActiveRef.current = timerActive
-
-    if (wasActive && !timerActive && timerSeconds === 0 && !completedRef.current) {
-      completedRef.current = true
-      playBeep()
-      onComplete()
+    function handleVisibility() {
+      if (document.visibilityState === 'visible' && timerActive && timerEndTime > 0) {
+        const remaining = getRemaining()
+        setDisplaySeconds(remaining)
+        if (remaining === 0) handleExpired()
+      }
     }
-  }, [timerActive, timerSeconds])
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [timerActive, timerEndTime]) // eslint-disable-line
 
   function playBeep() {
     try {
-      const ctx = new AudioContext()
-      const osc = ctx.createOscillator()
+      const ctx  = new AudioContext()
+      const osc  = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
       gain.connect(ctx.destination)
@@ -52,9 +76,9 @@ export function TimerDescanso({ onComplete, maxSeconds = 60 }: TimerDescansoProp
     } catch {}
   }
 
-  if (!timerActive && timerSeconds === 0) return null
+  if (!timerActive && displaySeconds === 0) return null
 
-  const pct = maxSeconds > 0 ? (timerSeconds / maxSeconds) * 100 : 0
+  const pct = maxSeconds > 0 ? (displaySeconds / maxSeconds) * 100 : 0
 
   return (
     <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-[#2A2A2A] mt-4">
@@ -68,11 +92,11 @@ export function TimerDescanso({ onComplete, maxSeconds = 60 }: TimerDescansoProp
         </button>
       </div>
       <div className="text-4xl font-bold text-center my-3 tabular-nums" style={{ color: '#E67E22' }}>
-        {String(Math.floor(timerSeconds / 60)).padStart(2, '0')}:{String(timerSeconds % 60).padStart(2, '0')}
+        {String(Math.floor(displaySeconds / 60)).padStart(2, '0')}:{String(displaySeconds % 60).padStart(2, '0')}
       </div>
       <div className="h-2 bg-[#2A2A2A] rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-1000"
+          className="h-full rounded-full transition-all duration-200"
           style={{ width: `${pct}%`, backgroundColor: '#E67E22' }}
         />
       </div>

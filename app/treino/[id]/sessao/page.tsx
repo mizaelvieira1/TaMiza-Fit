@@ -30,11 +30,13 @@ export default function SessaoPage() {
   const [finishedSessionId, setFinishedSessionId] = useState<string | null>(null)
   const [isResting, setIsResting]           = useState(false)
   const [restDuration, setRestDuration]     = useState(60)
+  const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set())
   const startTimeRef = useRef<number>(Date.now())
 
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
   const currentExercise = exercises[currentExerciseIndex]
-  const totalSets = currentExercise?.sets || 1
+  const isCardio  = (currentExercise?.rest_seconds ?? -1) === 0
+  const totalSets = isCardio ? 1 : (currentExercise?.sets || 1)
 
   useEffect(() => {
     if (!activeProfile) { router.replace('/'); return }
@@ -110,7 +112,8 @@ export default function SessaoPage() {
       // Avança o contador de séries imediatamente
       setCurrentSet(currentSetIndex + 1)
     } else {
-      // Última série do exercício — avança para o próximo
+      // Última série — marca exercício como concluído e avança
+      setCompletedExercises(prev => new Set([...prev, currentExerciseIndex]))
       const nextIdx = currentExerciseIndex + 1
       if (nextIdx < exercises.length) {
         setCurrentExercise(nextIdx)
@@ -260,7 +263,7 @@ export default function SessaoPage() {
   }
 
   // ── Sessão em andamento ────────────────────────────────────────────────────
-  const exercisesDone = exercises.filter((_, i) => i < currentExerciseIndex).length
+  const exercisesDone = completedExercises.size
   const progressPct = Math.round((exercisesDone / exercises.length) * 100)
 
   return (
@@ -313,46 +316,63 @@ export default function SessaoPage() {
             )}
 
             {/* Stats da série atual */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color }}>
-                  {currentSetIndex + 1}
-                  <span className="text-[#888] text-sm font-normal"> / {totalSets}</span>
-                </p>
-                <p className="text-xs text-[#888]">Série</p>
+            {isCardio ? (
+              <div className="flex items-center justify-center gap-8 mb-4 py-2">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-white">{currentExercise.reps}</p>
+                  <p className="text-xs text-[#888] mt-1">duração</p>
+                </div>
+                {currentExercise.sets > 1 && (
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-white">{currentExercise.sets}</p>
+                    <p className="text-xs text-[#888] mt-1">ciclos</p>
+                  </div>
+                )}
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">{currentExercise.reps}</p>
-                <p className="text-xs text-[#888]">Reps</p>
+            ) : (
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold" style={{ color }}>
+                    {currentSetIndex + 1}
+                    <span className="text-[#888] text-sm font-normal"> / {totalSets}</span>
+                  </p>
+                  <p className="text-xs text-[#888]">Série</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-white">{currentExercise.reps}</p>
+                  <p className="text-xs text-[#888]">Reps</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-white">{currentExercise.rest_seconds}s</p>
+                  <p className="text-xs text-[#888]">Descanso</p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">{currentExercise.rest_seconds}s</p>
-                <p className="text-xs text-[#888]">Descanso</p>
-              </div>
-            </div>
+            )}
 
-            {/* Input de carga */}
-            <div className="mb-4">
-              <p className="text-xs text-[#888] mb-1">Carga (kg)</p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: Math.max(0, (w[currentExercise.id] || 0) - 0.5) }))}
-                  className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
-                >−</button>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={weights[currentExercise.id] || 0}
-                  onChange={e => setWeights(w => ({ ...w, [currentExercise.id]: parseFloat(e.target.value) || 0 }))}
-                  className="flex-1 bg-[#2A2A2A] rounded-xl text-center text-2xl font-bold text-white py-2.5 outline-none border border-[#3A3A3A] focus:border-white"
-                />
-                <button
-                  onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: (w[currentExercise.id] || 0) + 0.5 }))}
-                  className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
-                >+</button>
+            {/* Input de carga — oculto em exercícios cardio/sem peso */}
+            {!isCardio && (
+              <div className="mb-4">
+                <p className="text-xs text-[#888] mb-1">Carga (kg)</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: Math.max(0, (w[currentExercise.id] || 0) - 0.5) }))}
+                    className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
+                  >−</button>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={weights[currentExercise.id] || 0}
+                    onChange={e => setWeights(w => ({ ...w, [currentExercise.id]: parseFloat(e.target.value) || 0 }))}
+                    className="flex-1 bg-[#2A2A2A] rounded-xl text-center text-2xl font-bold text-white py-2.5 outline-none border border-[#3A3A3A] focus:border-white"
+                  />
+                  <button
+                    onClick={() => setWeights(w => ({ ...w, [currentExercise.id]: (w[currentExercise.id] || 0) + 0.5 }))}
+                    className="w-10 h-10 rounded-xl bg-[#2A2A2A] text-white text-xl font-bold flex items-center justify-center active:scale-90"
+                  >+</button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Botão principal */}
             <button
@@ -366,6 +386,8 @@ export default function SessaoPage() {
             >
               {isResting
                 ? '⏳ Aguarde o descanso…'
+                : isCardio
+                ? <><Check size={18} strokeWidth={3} /> Concluído</>
                 : <><Check size={18} strokeWidth={3} /> Série Concluída</>
               }
             </button>
@@ -390,7 +412,7 @@ export default function SessaoPage() {
         {showChecklist && (
           <div className="space-y-1.5 pb-4">
             {exercises.map((ex, i) => {
-              const isDone    = i < currentExerciseIndex
+              const isDone    = completedExercises.has(i)
               const isCurrent = i === currentExerciseIndex
               return (
                 <button

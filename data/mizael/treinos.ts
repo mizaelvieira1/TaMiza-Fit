@@ -23,11 +23,11 @@ export const MIZAEL_TREINOS: Treino[] = [
     durationMin: 50,
     focus: "Quadríceps • Posterior • Glúteo • Panturrilha",
     exercises: [
-      { name: "Agachamento com barra", sets: 4, reps: "8-10", restSeconds: 60, initialWeightKg: 20, notes: "Barra vazia (20kg) — priorizar técnica" },
+      { name: "Agachamento com barra", sets: 3, reps: "8-10", restSeconds: 60, initialWeightKg: 20, notes: "Barra vazia (20kg) — priorizar técnica" },
       { name: "Cadeira extensora", sets: 3, reps: "12-15", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
       { name: "Cadeira flexora", sets: 3, reps: "12-15", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
       { name: "Avanço com halteres", sets: 3, reps: "10 cada perna", restSeconds: 60, initialWeightKg: 7, notes: "6-8 kg cada" },
-      { name: "Elevação de panturrilha", sets: 4, reps: "15-20", restSeconds: 60, initialWeightKg: 0, notes: "Barra ou livre" },
+      { name: "Elevação de panturrilha", sets: 3, reps: "15-20", restSeconds: 60, initialWeightKg: 0, notes: "Barra ou livre" },
       { name: "Abdominal", sets: 3, reps: "15", restSeconds: 60, initialWeightKg: 0, notes: "Sem carga", exerciseType: "abdominal" },
     ]
   },
@@ -50,7 +50,7 @@ export const MIZAEL_TREINOS: Treino[] = [
     durationMin: 50,
     focus: "Costas • Bíceps • Ombro Posterior",
     exercises: [
-      { name: "Puxada na polia (barra larga)", sets: 4, reps: "10-12", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
+      { name: "Puxada na polia (barra larga)", sets: 3, reps: "10-12", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
       { name: "Remada com halter apoiado", sets: 3, reps: "10-12", restSeconds: 60, initialWeightKg: 11, notes: "10-12 kg cada" },
       { name: "Remada na polia baixa", sets: 3, reps: "10-12", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
       { name: "Rosca bíceps com halteres", sets: 3, reps: "10-12", restSeconds: 60, initialWeightKg: 7.5, notes: "7-8 kg cada" },
@@ -65,11 +65,11 @@ export const MIZAEL_TREINOS: Treino[] = [
     durationMin: 50,
     focus: "Posterior • Glúteo • Variação",
     exercises: [
-      { name: "Stiff com halteres (posterior)", sets: 4, reps: "10-12", restSeconds: 60, initialWeightKg: 11, notes: "10-12 kg cada" },
+      { name: "Stiff com halteres (posterior)", sets: 3, reps: "10-12", restSeconds: 60, initialWeightKg: 11, notes: "10-12 kg cada" },
       { name: "Agachamento sumo com halter", sets: 3, reps: "12-15", restSeconds: 60, initialWeightKg: 13.5, notes: "12-15 kg" },
       { name: "Cadeira flexora", sets: 3, reps: "12-15", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
       { name: "Cadeira extensora", sets: 3, reps: "12-15", restSeconds: 60, initialWeightKg: 0, notes: "Ajustar" },
-      { name: "Elevação de panturrilha", sets: 4, reps: "15-20", restSeconds: 60, initialWeightKg: 0, notes: "Livre ou barra" },
+      { name: "Elevação de panturrilha", sets: 3, reps: "15-20", restSeconds: 60, initialWeightKg: 0, notes: "Livre ou barra" },
       { name: "Prancha lateral", sets: 3, reps: "20 seg cada lado", restSeconds: 60, initialWeightKg: 0, notes: "Sem carga", exerciseType: "prancha" },
     ]
   },
