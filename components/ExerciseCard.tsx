@@ -4,6 +4,7 @@ import { Check, ChevronRight } from 'lucide-react'
 import { useProfileStore } from '@/store/profileStore'
 import { useProgressaoCarga } from '@/hooks/useProgressaoCarga'
 import { useExerciseGif } from '@/hooks/useExerciseGif'
+import { ExerciseDemo } from '@/components/ExerciseDemo'
 
 interface ExerciseCardProps {
   exerciseId: string
@@ -97,24 +98,15 @@ export function ExerciseCard({
       {/* Detalhe expandido (apenas quando sem onClick externo) */}
       {!onClick && expanded && (
         <div className="px-4 pb-4 border-t border-[#2A2A2A]">
-          {/* GIF / vídeo */}
+          {/* Demonstração do exercício */}
           {gifData.url ? (
-            <div className="rounded-xl overflow-hidden mt-3 bg-[#111]" style={{ maxHeight: 200 }}>
-              {gifData.isVideo ? (
-                <video
-                  src={gifData.url}
-                  autoPlay loop muted playsInline
-                  className="w-full object-contain"
-                  style={{ maxHeight: 200 }}
-                />
-              ) : (
-                <img
-                  src={gifData.url}
-                  alt={name}
-                  className="w-full object-contain"
-                  style={{ maxHeight: 200 }}
-                />
-              )}
+            <div className="mt-3">
+              <ExerciseDemo
+                url={gifData.url}
+                url2={gifData.url2}
+                alt={name}
+                maxHeight={200}
+              />
             </div>
           ) : (
             <div className="mt-3 h-10 flex items-center justify-center">

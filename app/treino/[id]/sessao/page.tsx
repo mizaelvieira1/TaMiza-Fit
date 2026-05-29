@@ -7,6 +7,7 @@ import { useProfileStore } from '@/store/profileStore'
 import { useSessionStore } from '@/store/sessionStore'
 import { TimerDescanso } from '@/components/TimerDescanso'
 import { useExerciseGif } from '@/hooks/useExerciseGif'
+import { ExerciseDemo } from '@/components/ExerciseDemo'
 
 export default function SessaoPage() {
   const router = useRouter()
@@ -312,24 +313,15 @@ export default function SessaoPage() {
               </div>
             </div>
 
-            {/* GIF demonstração */}
+            {/* Demonstração do exercício */}
             {exerciseGifData.url && (
-              <div className="rounded-xl overflow-hidden mb-3 bg-[#111]" style={{ maxHeight: 200 }}>
-                {exerciseGifData.isVideo ? (
-                  <video
-                    src={exerciseGifData.url}
-                    autoPlay loop muted playsInline
-                    className="w-full object-contain"
-                    style={{ maxHeight: 200 }}
-                  />
-                ) : (
-                  <img
-                    src={exerciseGifData.url}
-                    alt={currentExercise.name}
-                    className="w-full object-contain"
-                    style={{ maxHeight: 200 }}
-                  />
-                )}
+              <div className="mb-3">
+                <ExerciseDemo
+                  url={exerciseGifData.url}
+                  url2={exerciseGifData.url2}
+                  alt={currentExercise.name}
+                  maxHeight={200}
+                />
               </div>
             )}
 
