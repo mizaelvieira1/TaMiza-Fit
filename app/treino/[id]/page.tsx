@@ -29,26 +29,26 @@ export default function TreinoDetailPage() {
       const { data: exs } = await supabase.from('exercises').select('*').eq('workout_id', id).order('order_index')
       setExercises(exs || [])
 
-      // Load last weights per exercise
+      // Último peso usado por exercício (sem filtro de completed na sessão)
       if (exs && exs.length > 0) {
-        const { data: sessions } = await supabase
+        const { data: recentSessions } = await supabase
           .from('workout_sessions')
           .select('id')
           .eq('profile_id', profileId)
           .eq('workout_id', id)
-          .eq('completed', true)
-          .order('finished_at', { ascending: false })
-          .limit(1)
+          .order('started_at', { ascending: false })
+          .limit(5)
 
-        if (sessions && sessions.length > 0) {
+        if (recentSessions && recentSessions.length > 0) {
           const { data: logs } = await supabase
             .from('set_logs')
             .select('exercise_id, weight_kg')
-            .eq('session_id', sessions[0].id)
+            .in('session_id', recentSessions.map(s => s.id))
             .eq('completed', true)
+            .order('logged_at', { ascending: false })
 
           const weights: Record<string, number> = {}
-          logs?.forEach(l => { weights[l.exercise_id] = l.weight_kg })
+          logs?.forEach(l => { if (!weights[l.exercise_id]) weights[l.exercise_id] = l.weight_kg })
           setLastWeights(weights)
         }
       }
