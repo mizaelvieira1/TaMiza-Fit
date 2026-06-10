@@ -144,6 +144,37 @@ export default function SessaoPage() {
     }
   }
 
+  // Marca o exercício inteiro como feito de uma vez (sem passar série por série)
+  function completeExercise() {
+    if (!sessionId || !currentExercise) return
+
+    stopTimer()
+    setIsResting(false)
+
+    // Loga todas as séries restantes de uma só vez (fire and forget)
+    const now = new Date().toISOString()
+    for (let s = currentSetIndex; s < totalSets; s++) {
+      supabase.from('set_logs').insert({
+        session_id:  sessionId,
+        exercise_id: currentExercise.id,
+        set_number:  s + 1,
+        weight_kg:   weights[currentExercise.id] || 0,
+        reps_done:   0,
+        completed:   true,
+        logged_at:   now,
+      })
+    }
+
+    setCompletedExercises(prev => new Set([...prev, currentExerciseIndex]))
+    const nextIdx = currentExerciseIndex + 1
+    if (nextIdx < exercises.length) {
+      setCurrentExercise(nextIdx)
+      setCurrentSet(0)
+    } else {
+      finishWorkout()
+    }
+  }
+
   // Chamado quando o timer termina (natural ou "Pular")
   function handleTimerDone() {
     stopTimer()
@@ -418,6 +449,17 @@ export default function SessaoPage() {
                 : <><Check size={18} strokeWidth={3} /> Série Concluída</>
               }
             </button>
+
+            {/* Botão secundário — marca o exercício inteiro como feito de uma vez */}
+            {!isCardio && (
+              <button
+                onClick={completeExercise}
+                className="w-full py-2.5 rounded-2xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.97] transition-all mt-2 border border-[#2A2A2A] text-[#888] bg-transparent hover:text-white hover:border-[#444]"
+              >
+                <Check size={14} strokeWidth={2.5} />
+                Exercício feito
+              </button>
+            )}
           </div>
         )}
 
