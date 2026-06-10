@@ -33,9 +33,12 @@ export default function SessaoPage() {
   const [isResting, setIsResting]           = useState(false)
   const [restDuration, setRestDuration]     = useState(60)
   const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set())
+  const [dateOffset, setDateOffset]         = useState(0) // 0 = hoje, 1 = ontem
   const startTimeRef = useRef<number>(Date.now())
 
   const color = activeProfile === 'tamires' ? '#E91E8C' : '#FFFFFF'
+  // Timestamp ajustado pelo offset de data (0=hoje, 1=ontem)
+  const logTs = () => new Date(Date.now() - dateOffset * 86400000).toISOString()
   const currentExercise = exercises[currentExerciseIndex]
   const isCardio  = (currentExercise?.rest_seconds ?? -1) === 0
   const totalSets = isCardio ? 1 : (currentExercise?.sets || 1)
@@ -92,7 +95,7 @@ export default function SessaoPage() {
     if (!profileId) return
     const { data: s } = await supabase
       .from('workout_sessions')
-      .insert({ profile_id: profileId, workout_id: id, started_at: new Date().toISOString() })
+      .insert({ profile_id: profileId, workout_id: id, started_at: logTs() })
       .select()
       .single()
     if (s) { setSessionId(s.id); setSessionStarted(true); startTimeRef.current = Date.now() }
@@ -113,7 +116,7 @@ export default function SessaoPage() {
       weight_kg:   weights[currentExercise.id] || 0,
       reps_done:   0,
       completed:   true,
-      logged_at:   new Date().toISOString(),
+      logged_at:   logTs(),
     })
 
     const isLastSet = currentSetIndex + 1 >= totalSets
@@ -152,7 +155,7 @@ export default function SessaoPage() {
     setIsResting(false)
 
     // Loga todas as séries restantes de uma só vez (fire and forget)
-    const now = new Date().toISOString()
+    const ts = logTs()
     for (let s = currentSetIndex; s < totalSets; s++) {
       supabase.from('set_logs').insert({
         session_id:  sessionId,
@@ -161,7 +164,7 @@ export default function SessaoPage() {
         weight_kg:   weights[currentExercise.id] || 0,
         reps_done:   0,
         completed:   true,
-        logged_at:   now,
+        logged_at:   ts,
       })
     }
 
@@ -198,7 +201,7 @@ export default function SessaoPage() {
     // Fire-and-forget: não bloqueia a UI; a requisição já foi enviada mesmo
     // se o usuário fechar o app logo depois
     supabase.from('workout_sessions')
-      .update({ finished_at: new Date().toISOString(), completed: true, duration_min: dur })
+      .update({ finished_at: logTs(), completed: true, duration_min: dur })
       .eq('id', sid)
       .then()
 
@@ -295,13 +298,40 @@ export default function SessaoPage() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <div className="text-5xl mb-4">💪</div>
           <p className="text-white font-semibold text-lg mb-2">Pronto para começar?</p>
-          <p className="text-[#888] text-sm mb-8">{exercises.length} exercícios • {workout?.duration_min} min</p>
+          <p className="text-[#888] text-sm mb-6">{exercises.length} exercícios • {workout?.duration_min} min</p>
+
+          {/* Seletor de data — para registrar treino feito ontem */}
+          <div className="flex gap-2 w-full mb-4">
+            <button
+              onClick={() => setDateOffset(0)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95"
+              style={{
+                backgroundColor: dateOffset === 0 ? color : '#1A1A1A',
+                color: dateOffset === 0 ? (activeProfile === 'tamires' ? '#fff' : '#000') : '#888',
+                border: `1px solid ${dateOffset === 0 ? color : '#2A2A2A'}`,
+              }}
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => setDateOffset(1)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95"
+              style={{
+                backgroundColor: dateOffset === 1 ? color : '#1A1A1A',
+                color: dateOffset === 1 ? (activeProfile === 'tamires' ? '#fff' : '#000') : '#888',
+                border: `1px solid ${dateOffset === 1 ? color : '#2A2A2A'}`,
+              }}
+            >
+              Ontem
+            </button>
+          </div>
+
           <button
             onClick={startSession}
             className="w-full py-4 rounded-2xl text-base font-bold active:scale-95 transition-transform"
             style={{ backgroundColor: color, color: activeProfile === 'tamires' ? '#fff' : '#000' }}
           >
-            Iniciar Treino
+            {dateOffset === 0 ? 'Iniciar Treino' : 'Registrar Treino de Ontem'}
           </button>
         </div>
       </div>
